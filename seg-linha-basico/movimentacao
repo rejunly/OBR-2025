@@ -1,0 +1,109 @@
+import cv2
+import numpy as np
+from tensorflow.keras.models import load_model
+import RPi.GPIO as GPIO
+import time
+
+# -------------------- GPIO SETUP --------------------
+GPIO.setmode(GPIO.BCM)
+GPIO.setwarnings(False)
+
+# Pinos de controle do motor A (esquerdo)
+IN1 = 17  # Motor A IN1
+IN2 = 18  # Motor A IN2
+ENA = 12  # Motor A ENA (PWM)
+
+# Pinos de controle do motor B (direito)
+IN3 = 22  # Motor B IN3
+IN4 = 23  # Motor B IN4
+ENB = 13  # Motor B ENB (PWM)
+
+# Configurar os pinos como saída
+for pin in [IN1, IN2, IN3, IN4, ENA, ENB]:
+    GPIO.setup(pin, GPIO.OUT)
+
+# Inicializar PWM nos pinos ENA e ENB
+pwm_a = GPIO.PWM(ENA, 1000)  # Frequência de 1kHz
+pwm_b = GPIO.PWM(ENB, 1000)
+pwm_a.start(50)  # 50% de duty cycle (ajuste para controlar a velocidade)
+pwm_b.start(50)
+
+# -------------------- Funções de movimento --------------------
+def mover_frente():
+    GPIO.output(IN1, True)
+    GPIO.output(IN2, False)
+    GPIO.output(IN3, True)
+    GPIO.output(IN4, False)
+
+def virar_esquerda():
+    GPIO.output(IN1, False)
+    GPIO.output(IN2, True)
+    GPIO.output(IN3, True)
+    GPIO.output(IN4, False)
+
+def virar_direita():
+    GPIO.output(IN1, True)
+    GPIO.output(IN2, False)
+    GPIO.output(IN3, False)
+    GPIO.output(IN4, True)
+
+def parar():
+    GPIO.output(IN1, False)
+    GPIO.output(IN2, False)
+    GPIO.output(IN3, False)
+    GPIO.output(IN4, False)
+
+# -------------------- IA e Visão --------------------
+model = load_model("/home/pi/model_pi_2.h5")
+print("Modelo carregado com sucesso!")
+
+traducao = {
+    "forward": "FRENTE",
+    "left": "ESQUERDA",
+    "right": "DIREITA",
+    "nothing": "SEM LINHA",
+    "forward-black": "PRETO TOTAL"
+}
+
+classes = ["forward", "left", "right", "nothing", "forward-black"]
+
+cap = cv2.VideoCapture(0)
+
+if not cap.isOpened():
+    print("Erro ao abrir a câmera.")
+else:
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            print("Erro ao capturar frame.")
+            break
+
+        # Pré-processamento da imagem
+        img = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        img = cv2.resize(img, (28, 28))
+        img = img.astype("float32") / 255.0
+        img = img.reshape(1, 28, 28, 1)
+
+        # Previsão da IA
+        prediction = model.predict(img)
+        class_index = np.argmax(prediction)
+        comando = traducao[classes[class_index]]
+        print(f"Comando: {comando}")
+
+        # Comando nos motores
+        if comando == "FRENTE" or comando == "PRETO TOTAL":
+            mover_frente()
+        elif comando == "ESQUERDA":
+            virar_esquerda()
+        elif comando == "DIREITA":
+            virar_direita()
+        else:
+            parar()
+
+        # Pressione 'q' para sair
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+
+    cap.release()
+    cv2.destroyAllWindows()
+    GPIO.cleanup()
