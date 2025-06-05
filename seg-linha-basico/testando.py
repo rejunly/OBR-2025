@@ -3,22 +3,23 @@ import numpy as np
 from tensorflow.keras.models import load_model
 
 # Carregar o modelo salvo localmente (atualize o caminho conforme necessário)
-model = load_model("C:/Users/Cliente-TechNew/Downloads/IAs/model_pi_2.h5")
+model = load_model("C:/Users/Cliente-TechNew/Downloads/IAs/ia-seg-linha-basico.h5")
 print("Modelo carregado com sucesso!")
 
 # Dicionário de tradução para os comandos
 traducao = {
     "forward": "FRENTE",
     "left": "ESQUERDA",
-    "right": "DIREITA",
-    "nothing": "SEM LINHA"
+    "nothing": "DIREITA", #parametros [sem linha e direita] invertidos
+    "right": "SEM LINHA",
+    "forward-black": "SEGUE RETO (dois pretos)"
 }
 
 # Capturar a webcam (o EpocCam precisa estar funcionando como webcam padrão)
-cap = cv2.VideoCapture(1)
+cap = cv2.VideoCapture(2) #P  ARÂMETROS - 0: webcam do notebook; 1: EpocCam; 2: camera USB
 
 if not cap.isOpened():
-    print("Erro ao abrir a câmera. Verifique se o EpocCam está funcionando corretamente e se está selecionado como webcam padrão.")
+    print("Erro ao abrir a câmera. Verifique se a câmera está funcionando corretamente ou se o parâmetro está correto.")
 else:
     while True:
         ret, frame = cap.read()
@@ -35,7 +36,7 @@ else:
         # Fazer a previsão
         prediction = model.predict(img)
         class_index = np.argmax(prediction)
-        classes = ["forward", "left", "right", "nothing"]
+        classes = ["forward", "left", "right", "nothing", ]
         comando = traducao[classes[class_index]]
 
         # Exibir o comando na imagem
