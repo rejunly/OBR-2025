@@ -2,24 +2,28 @@ import cv2
 import numpy as np
 from tensorflow.keras.models import load_model
 
-# Carregar o modelo salvo localmente (atualize o caminho conforme necessário)
-model = load_model("C:/Users/Cliente-TechNew/Downloads/IAs/ia-seg-linha-basico.h5")
+# Carregar o modelo salvo localmente
+model = load_model("C:/Users/20221084010016/Documents/obr2025") #alterar quando necessário
 print("Modelo carregado com sucesso!")
 
 # Dicionário de tradução para os comandos
 traducao = {
     "forward": "FRENTE",
     "left": "ESQUERDA",
-    "nothing": "DIREITA", #parametros [sem linha e direita] invertidos
-    "right": "SEM LINHA",
-    "forward-black": "SEGUE RETO (dois pretos)"
+    "right": "DIREITA",
+    "nothing": "SEM LINHA",
+    "forward-black": "SEGUIR (PRETO)",
+    "verde-emfrente": "FRENTE-INTS",
+    "verde-vira-direita": "DIREITA-INTS",
+    "verde-vira-esquerda": "ESQUERDA-INTS",
+    "curva": "CURVA"
 }
 
-# Capturar a webcam (o EpocCam precisa estar funcionando como webcam padrão)
-cap = cv2.VideoCapture(2) #P  ARÂMETROS - 0: webcam do notebook; 1: EpocCam; 2: camera USB
+# Capturar a webcam
+cap = cv2.VideoCapture(2)
 
 if not cap.isOpened():
-    print("Erro ao abrir a câmera. Verifique se a câmera está funcionando corretamente ou se o parâmetro está correto.")
+    print("Erro ao abrir a câmera.")
 else:
     while True:
         ret, frame = cap.read()
@@ -27,16 +31,16 @@ else:
             print("Erro ao capturar frame da câmera.")
             break
 
-        # Pré-processamento da imagem
-        img = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        img = cv2.resize(img, (28, 28))
+        # Pré-processamento da imagem (agora em RGB)
+        img = cv2.resize(frame, (28, 28))
         img = img.astype("float32") / 255.0
-        img = img.reshape(1, 28, 28, 1)
+        img = img.reshape(1, 28, 28, 3)
 
         # Fazer a previsão
         prediction = model.predict(img)
         class_index = np.argmax(prediction)
-        classes = ["forward", "left", "right", "nothing", ]
+
+        classes = ["forward", "left", "right", "nothing", "forward-black", "verde", "vermelho", "prateado", "interseção-t"]
         comando = traducao[classes[class_index]]
 
         # Exibir o comando na imagem
@@ -44,7 +48,6 @@ else:
                     1, (0, 255, 0), 2)
         cv2.imshow("Teste ao Vivo", frame)
 
-        # Pressione 'q' para sair
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
