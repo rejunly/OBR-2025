@@ -61,3 +61,19 @@ def movimentar(comando):
         retorno()
     else:
         parar()
+
+if __name__ == "__main__":
+    try:
+        frente()
+        time.sleep(1)
+        direita()
+        time.sleep(1)
+        esquerda()
+        time.sleep(1)
+        tras()
+        time.sleep(1)
+        parar()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        GPIO.cleanup()
