@@ -13,7 +13,7 @@ SEQ = [
     [1, 0, 0, 1]
 ]
 
-# Define os pinos de cada motor (ordem: IN1, IN2, IN3, IN4) - usando numeração BCM
+# Define os pinos de cada motor (ordem: IN1, IN2, IN3, IN4)
 MOTORES = {
     "frente_esq": [17, 18, 27, 22],
     "frente_dir": [23, 24, 25, 5],
@@ -29,7 +29,7 @@ for pinos in MOTORES.values():
         GPIO.output(pino, 0)
 
 # Função que gira um motor por X tempo
-def girar_motor(pinos, sentido="horario", tempo=5, delay=0.002):
+def girar_motor(pinos, sentido="horario", tempo=0.1, delay=0.002):
     fim = time.time() + tempo
     seq = SEQ if sentido == "horario" else SEQ[::-1]
     while time.time() < fim:
@@ -39,7 +39,8 @@ def girar_motor(pinos, sentido="horario", tempo=5, delay=0.002):
             time.sleep(delay)
 
 # Movimento geral para 4 motores
-def mover_todos(sentido_dict, tempo=5):
+def mover_todos(sentido_dict, tempo=0.1):
+    # sentido_dict: {"frente_esq": "horario", ...}
     inicio = time.time()
     while time.time() - inicio < tempo:
         for i in range(len(SEQ)):
@@ -99,28 +100,18 @@ def movimentar(comando):
         parar()
 
 # Teste manual
-if __name__ == "__main__":
-    try:
-        print("Frente")
-        frente()
-        time.sleep(1)
-
-        print("Direita")
-        direita()
-        time.sleep(1)
-
-        print("Esquerda")
-        esquerda()
-        time.sleep(1)
-
-        print("Trás")
-        tras()
-        time.sleep(1)
-
-        print("Parar")
-        parar()
-
-    except KeyboardInterrupt:
-        pass
-    finally:
-        GPIO.cleanup()
+#if __name__ == "__main__":
+   # try:
+     #   frente()
+    #    time.sleep(1)
+   #     direita()
+  #      time.sleep(1)
+ #       esquerda()
+#        time.sleep(1)
+#        tras()
+#        time.sleep(1)
+#        parar()
+#    except KeyboardInterrupt:
+#        pass
+#    finally:
+#        GPIO.cleanup()
