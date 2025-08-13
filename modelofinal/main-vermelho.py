@@ -3,17 +3,16 @@ import numpy as np
 from movimento import movimentar, parar
 import RPi.GPIO as GPIO
 
-# Inicialização da câmera
+# Inicialização da câmera e GPIO
 cap = cv2.VideoCapture(0)  # Use 0, 1 ou o IP da câmera do celular
 cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+GPIO.setmode(GPIO.BCM)
 
+#Teste inicialização
 if not cap.isOpened():
     print("Erro: Não foi possível abrir a câmera.")
     exit()
-
-# Configuração GPIO (modificado para comentar as linhas que não são usadas)
-GPIO.setmode(GPIO.BCM)
 
 while True:
     ret, frame = cap.read()
@@ -25,14 +24,14 @@ while True:
     height, width, _ = frame.shape
     roi = frame[380:440, 0:width]
     
-    # Conversão para HSV (necessário para a detecção de cores)
+    # Conversão para HSV p/ detecção de cor
     hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
 
     # Máscaras para preto (linha), verde (sinal) e vermelho (parar)
     Blackline = cv2.inRange(roi, (0, 0, 0), (50, 50, 50))
     Greensign = cv2.inRange(roi, (0, 65, 0), (100, 200, 100))
 
-    # Máscaras para a cor vermelha em HSV (o vermelho está em duas extremidades no HSV)
+    # Máscaras para a cor vermelha em HSV 
     lower_red1 = np.array([0, 100, 100])
     upper_red1 = np.array([10, 255, 255])
     mask_red1 = cv2.inRange(hsv, lower_red1, upper_red1)
@@ -64,12 +63,12 @@ while True:
     # Condição para detecção de vermelho
     if len(contours_red) > 0 and cv2.contourArea(max(contours_red, key=cv2.contourArea)) > 500:
         RedDected = True
-        direction = "vermelho detectado" # Mudei para uma string que o "movimentar" possa entender
-        color = (0, 0, 255) # Cor vermelha para o texto
+        direction = "vermelho detectado" 
+        color = (0, 0, 255) 
         print(f"Comando: {direction}")
         movimentar(direction)
 
-    # Lógica de controle de movimento (agora aninhada em um 'else' para priorizar o vermelho)
+    # Lógica de controle de movimento 
     else:
         if len(contours_blk) > 0:
             largest_blk = max(contours_blk, key=cv2.contourArea)
