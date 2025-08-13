@@ -1,6 +1,6 @@
 import cv2
 import numpy as np
-from movimento import movimentar, parar
+from movimento import movimentar, parar, desviar
 import RPi.GPIO as GPIO
 
 # Inicialização da câmera e GPIO
