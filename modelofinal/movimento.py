@@ -85,6 +85,36 @@ def parar():
 def retorno():
     tras()
 
+def desviar():
+    # Parar para não bater no obstáculo
+    parar()
+    time.sleep(0.5)
+
+    # Reverter um pouco para se afastar
+    tras()
+    time.sleep(0.5)
+    parar()
+    time.sleep(0.5)
+
+    # Virar para um lado (ex: direita)
+    direita()
+    time.sleep(1) # Pode precisar ajustar o tempo para um bom ângulo
+    parar()
+    time.sleep(0.5)
+
+    # Avançar um pouco
+    frente()
+    time.sleep(1)
+    parar()
+    time.sleep(0.5)
+
+    # Virar para o outro lado (esquerda) para tentar encontrar a linha novamente
+    esquerda()
+    time.sleep(1)
+    parar()
+    time.sleep(0.5)
+
+
 def movimentar(comando):
     if comando == "Seguir em frente":
         frente()
@@ -115,3 +145,4 @@ def movimentar(comando):
 #        pass
 #    finally:
 #        GPIO.cleanup()
+
