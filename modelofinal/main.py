@@ -3,17 +3,17 @@ import numpy as np
 from movimento import movimentar, parar
 import RPi.GPIO as GPIO
 
-cap = cv2.VideoCapture(0)  # Use 0, 1 ou o IP da câmera do celular
+#Inicialização de camera e GPIO
+cap = cv2.VideoCapture(0)  #0: webcam; 1: celular
 cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+GPIO.setmode(GPIO.BCM)
 
+#Teste inicialização
 if not cap.isOpened():
     print("Erro")
     exit()
 
-GPIO.setmode(GPIO.BCM)
-#GPIO.setup(17,GPIO.OUT)
-#GPIO.output(17, GPIO.HIGH)
 
 while True:
     ret, frame = cap.read()
@@ -79,7 +79,5 @@ while True:
     key = cv2.waitKey(1) & 0xFF
     if key == ord("q"):
         break
-
-#GPIO.output(17, GPIO.LOW)
 cap.release()
 cv2.destroyAllWindows()
