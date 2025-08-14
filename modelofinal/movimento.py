@@ -29,7 +29,7 @@ for pinos in MOTORES.values():
         GPIO.output(pino, 0)
 
 # Função que gira um motor por X tempo
-def girar_motor(pinos, sentido="horario", tempo=0.1, delay=0.002):
+def girar_motor(pinos, sentido="horario", tempo=5, delay=0.002):
     fim = time.time() + tempo
     seq = SEQ if sentido == "horario" else SEQ[::-1]
     while time.time() < fim:
@@ -39,7 +39,7 @@ def girar_motor(pinos, sentido="horario", tempo=0.1, delay=0.002):
             time.sleep(delay)
 
 # Movimento geral para 4 motores
-def mover_todos(sentido_dict, tempo=0.1):
+def mover_todos(sentido_dict, tempo=5):
     # sentido_dict: {"frente_esq": "horario", ...}
     inicio = time.time()
     while time.time() - inicio < tempo:
@@ -52,46 +52,31 @@ def mover_todos(sentido_dict, tempo=0.1):
 
 # Funções de movimento
 def frente():
-    # Motor da frente esquerda precisa de sentido anti-horário para ir para frente
-    sentido = {
-        "frente_esq": "anti",
-        "frente_dir": "horario",
-        "tras_esq": "horario",
-        "tras_dir": "horario"
-    }
+    sentido = {m: "horario" for m in MOTORES}
     mover_todos(sentido)
 
 def tras():
-    # Motor da frente esquerda precisa de sentido horário para ir para trás
-    sentido = {
-        "frente_esq": "horario",
-        "frente_dir": "anti",
-        "tras_esq": "anti",
-        "tras_dir": "anti"
-    }
+    sentido = {m: "anti" for m in MOTORES}
     mover_todos(sentido)
 
 def esquerda():
     sentido = {
-        # Troca de "anti" para "horario"
-        "frente_esq": "horario",
+        "frente_esq": "anti",
         "tras_esq": "anti",
-        # Troca de "horario" para "anti"
-        "frente_dir": "anti",
+        "frente_dir": "horario",
         "tras_dir": "horario"
     }
     mover_todos(sentido)
 
 def direita():
     sentido = {
-        # Troca de "horario" para "anti"
-        "frente_esq": "anti",
+        "frente_esq": "horario",
         "tras_esq": "horario",
-        # Troca de "anti" para "horario"
-        "frente_dir": "horario",
+        "frente_dir": "anti",
         "tras_dir": "anti"
     }
     mover_todos(sentido)
+
 def parar():
     for pinos in MOTORES.values():
         for pino in pinos:
@@ -145,20 +130,18 @@ def movimentar(comando):
         parar()
 
 # Teste manual
-#if __name__ == "__main__":
-   # try:
-     #   frente()
-    #    time.sleep(1)
-   #     direita()
-  #      time.sleep(1)
- #       esquerda()
-#        time.sleep(1)
-#        tras()
-#        time.sleep(1)
-#        parar()
-#    except KeyboardInterrupt:
-#        pass
-#    finally:
-#        GPIO.cleanup()
-
-
+if __name__ == "__main__":
+    try:
+        frente()
+        time.sleep(5)
+        direita()
+        time.sleep(5)
+        esquerda()
+        time.sleep(5)
+        tras()
+        time.sleep(5)
+        parar()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        GPIO.cleanup()
