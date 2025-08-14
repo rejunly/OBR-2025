@@ -54,11 +54,12 @@ while True:
     RedSign = cv2.erode(RedSign, kernel, iterations=5)
     RedSign = cv2.dilate(RedSign, kernel, iterations=9)
 
+
     # Contornos da linha, sinal verde e sinal vermelho
     contours_blk, _ = cv2.findContours(Blackline.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
     contours_grn, _ = cv2.findContours(Greensign.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
     contours_red, _ = cv2.findContours(RedSign.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-
+    
     Greendected = False
     RedDected = False
     direction = ""
@@ -70,17 +71,22 @@ while True:
         color = (0, 0, 255) 
         print(f"Comando: {direction}")
         movimentar(direction)
-
+    
     # Lógica de controle de movimento
     else:
-        # AQUI COMEÇAM AS ALTERAÇÕES PARA OS QUADRADOS VERDES
-        
-        # 1. Detecção de dois quadrados verdes para giro de 180°
+        # 1. Prioridade para dois contornos pretos (seguir em frente)
+        # A área de cada contorno deve ser grande o suficiente
+        if len(contours_blk) > 1 and all(cv2.contourArea(c) > 200 for c in contours_blk):
+            direction = "seguir em frente"
+            print(f"Comando: {direction}")
+            movimentar(direction)
+            continue # Pula o resto da lógica e reinicia o loop
+    
+        # 2. Detecção de dois quadrados verdes para giro de 180°
         if len(contours_grn) > 1 and all(cv2.contourArea(c) > 500 for c in contours_grn):
             direction = "girar 180"
             print(f"Comando: {direction}")
             movimentar(direction)
-            # Adicione aqui um break ou return para sair do loop de controle de movimento e evitar outras ações
             continue
         
         # 2. Detecção de um quadrado verde
