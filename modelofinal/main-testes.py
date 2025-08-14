@@ -5,7 +5,7 @@ from ultrassonico import distancia
 import RPi.GPIO as GPIO
 
 # Inicialização da câmera e GPIO
-cap = cv2.VideoCapture(0)  # Use 0, 1 ou o IP da câmera do celular
+cap = cv2.VideoCapture(0)  # 0 webcam ; 1 celular
 cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 GPIO.setmode(GPIO.BCM)
@@ -24,7 +24,7 @@ while True:
         print("Erro: Frame não capturado.")
         continue
 
-    # 1. Checar por obstáculos primeiro
+    # Checar por obstáculos primeiro
     dist = distancia()
     print(f"Distância do obstáculo: {dist} cm")
 
@@ -33,13 +33,13 @@ while True:
         desviar()  # Chama a rotina de desvio
         continue   # Pula o restante do loop para checar a distância novamente
 
-    # 2. Se não houver obstáculo, continue com a lógica de seguir a linha
+    # 2. Se não houver obstáculo, continua com a lógica de seguir a linha
     height, width, _ = frame.shape    # Região de Interesse (ROI) para análise
     roi = frame[380:440, 0:width]
 
     hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
 
-    # Máscaras para preto (linha) e verde (sinal) ajustadas
+    # Máscaras para preto (linha), verde (sinal) e vermelho (sinal)
     lower_black = np.array([0, 0, 0])
     upper_black = np.array([179, 50, 50])
     Blackline = cv2.inRange(hsv, lower_black, upper_black)
@@ -48,7 +48,6 @@ while True:
     upper_green = np.array([80, 255, 255])
     Greensign = cv2.inRange(hsv, lower_green, upper_green)
     
-    # A máscara para vermelho permanece a mesma
     lower_red1 = np.array([0, 100, 100])
     upper_red1 = np.array([10, 255, 255])
     mask_red1 = cv2.inRange(hsv, lower_red1, upper_red1)
@@ -87,22 +86,21 @@ while True:
     
     # Lógica de controle de movimento
     else:
-        # 1. Prioridade para dois contornos pretos (seguir em frente)
-        # A área de cada contorno deve ser grande o suficiente
+        # Prioridade para dois contornos pretos (seguir em frente)
         if len(contours_blk) > 1 and all(cv2.contourArea(c) > 200 for c in contours_blk):
             direction = "seguir em frente"
             print(f"Comando: {direction}")
             movimentar(direction)
             continue # Pula o resto da lógica e reinicia o loop
     
-        # 2. Detecção de dois quadrados verdes para giro de 180°
+        # Detecção de dois quadrados verdes para giro de 180°
         if len(contours_grn) > 1 and all(cv2.contourArea(c) > 500 for c in contours_grn):
             direction = "girar 180"
             print(f"Comando: {direction}")
             movimentar(direction)
             continue
         
-        # 2. Detecção de um quadrado verde
+        # Detecção de um quadrado verde
         if len(contours_grn) > 0 and cv2.contourArea(max(contours_grn, key=cv2.contourArea)) > 500:
             Greendected = True
             largest_grn = max(contours_grn, key=cv2.contourArea)
@@ -119,7 +117,6 @@ while True:
                 # y_grn < y_blk (verde em cima da linha, ou seja, 'atrás' na visão do robô)
                 # y_grn > y_blk (verde embaixo da linha, ou seja, 'na frente' na visão do robô)
                 
-                                # O código corrigido ficaria assim:
                 if y_grn > y_blk: # Se o quadrado verde está 'à frente' da linha (mais baixo na tela)
                     # Mantenha o movimento em frente
                     direction = "seguir em frente"
@@ -145,7 +142,7 @@ while True:
                 movimentar(direction)
                 print(f"Comando: {direction}")
                 
-        # 3. Lógica original de seguir a linha preta (se nenhum verde foi detectado)
+        # Lógica tradicional de seguir a linha preta (se nenhum verde foi detectado)
         elif len(contours_blk) > 0:
             largest_blk = max(contours_blk, key=cv2.contourArea)
             x_blk, y_blk, w_blk, h_blk = cv2.boundingRect(largest_blk)
