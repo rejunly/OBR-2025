@@ -95,7 +95,7 @@ def parar():
 def retorno():
     tras()
 
-def desviar():
+def desviar(): ##ajustar nos testes
     # Parar para não bater no obstáculo
     parar()
     time.sleep(0.5)
@@ -106,9 +106,9 @@ def desviar():
     parar()
     time.sleep(0.5)
 
-    # Virar para um lado (ex: direita)
-    direita()
-    time.sleep(1) # Pode precisar ajustar o tempo para um bom ângulo
+    # Virar para o lado, iniciar movimento de desvio
+    direita() #setar lado
+    time.sleep(1) #ajustar para angulo
     parar()
     time.sleep(0.5)
 
@@ -118,9 +118,9 @@ def desviar():
     parar()
     time.sleep(0.5)
 
-    # Virar para o outro lado (esquerda) para tentar encontrar a linha novamente
+    # Virar para o outro lado para tentar encontrar a linha novamente
     esquerda()
-    time.sleep(1)
+    time.sleep(1) #ajustar para angulo
     parar()
     time.sleep(0.5)
 
@@ -132,7 +132,7 @@ def movimentar(comando):
         esquerda()
     elif comando in ["Curva à direita", "Curva verde à direita"]:
         direita()
-    elif "vermelho" in comando:
+    elif "parar" in comando:
         parar()
     elif "cinza" in comando:
         retorno()
@@ -155,4 +155,5 @@ if __name__ == "__main__":
         pass
     finally:
         GPIO.cleanup()
+
 
