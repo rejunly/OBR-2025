@@ -52,31 +52,46 @@ def mover_todos(sentido_dict, tempo=0.1):
 
 # Funções de movimento
 def frente():
-    sentido = {m: "horario" for m in MOTORES}
+    # Motor da frente esquerda precisa de sentido anti-horário para ir para frente
+    sentido = {
+        "frente_esq": "anti",
+        "frente_dir": "horario",
+        "tras_esq": "horario",
+        "tras_dir": "horario"
+    }
     mover_todos(sentido)
 
 def tras():
-    sentido = {m: "anti" for m in MOTORES}
+    # Motor da frente esquerda precisa de sentido horário para ir para trás
+    sentido = {
+        "frente_esq": "horario",
+        "frente_dir": "anti",
+        "tras_esq": "anti",
+        "tras_dir": "anti"
+    }
     mover_todos(sentido)
 
 def esquerda():
     sentido = {
-        "frente_esq": "anti",
+        # Troca de "anti" para "horario"
+        "frente_esq": "horario",
         "tras_esq": "anti",
-        "frente_dir": "horario",
+        # Troca de "horario" para "anti"
+        "frente_dir": "anti",
         "tras_dir": "horario"
     }
     mover_todos(sentido)
 
 def direita():
     sentido = {
-        "frente_esq": "horario",
+        # Troca de "horario" para "anti"
+        "frente_esq": "anti",
         "tras_esq": "horario",
-        "frente_dir": "anti",
+        # Troca de "anti" para "horario"
+        "frente_dir": "horario",
         "tras_dir": "anti"
     }
     mover_todos(sentido)
-
 def parar():
     for pinos in MOTORES.values():
         for pino in pinos:
@@ -145,4 +160,5 @@ def movimentar(comando):
 #        pass
 #    finally:
 #        GPIO.cleanup()
+
 
