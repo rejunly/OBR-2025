@@ -24,24 +24,27 @@ while True:
     height, width, _ = frame.shape
     roi = frame[380:440, 0:width]
     
-    # Conversão para HSV p/ detecção de cor
     hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
 
-    # Máscaras para preto (linha), verde (sinal) e vermelho (parar)
-    Blackline = cv2.inRange(roi, (0, 0, 0), (50, 50, 50))
-    Greensign = cv2.inRange(roi, (0, 65, 0), (100, 200, 100))
-
-    # Máscaras para a cor vermelha em HSV 
+    # Máscaras para preto (linha) e verde (sinal) ajustadas
+    lower_black = np.array([0, 0, 0])
+    upper_black = np.array([179, 50, 50])
+    Blackline = cv2.inRange(hsv, lower_black, upper_black)
+    
+    lower_green = np.array([40, 50, 50])
+    upper_green = np.array([80, 255, 255])
+    Greensign = cv2.inRange(hsv, lower_green, upper_green)
+    
+    # A máscara para vermelho permanece a mesma
     lower_red1 = np.array([0, 100, 100])
     upper_red1 = np.array([10, 255, 255])
     mask_red1 = cv2.inRange(hsv, lower_red1, upper_red1)
-
+    
     lower_red2 = np.array([160, 100, 100])
     upper_red2 = np.array([180, 255, 255])
     mask_red2 = cv2.inRange(hsv, lower_red2, upper_red2)
-
     RedSign = cv2.bitwise_or(mask_red1, mask_red2)
-    
+        
     # Processamento de imagem
     kernel = np.ones((3, 3), np.uint8)
     Blackline = cv2.erode(Blackline, kernel, iterations=5)
