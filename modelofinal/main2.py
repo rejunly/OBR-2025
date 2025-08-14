@@ -106,15 +106,14 @@ while True:
                 # y_grn < y_blk (verde em cima da linha, ou seja, 'atrás' na visão do robô)
                 # y_grn > y_blk (verde embaixo da linha, ou seja, 'na frente' na visão do robô)
                 
-                if y_grn < y_blk:
-                    # O quadrado verde está 'atrás' da linha preta.
+                                # O código corrigido ficaria assim:
+                if y_grn > y_blk: # Se o quadrado verde está 'à frente' da linha (mais baixo na tela)
                     # Mantenha o movimento em frente
                     direction = "seguir em frente"
                     movimentar(direction)
                     print(f"Comando: {direction}")
-                else:
-                    # O quadrado verde está 'à frente' da linha preta.
-                    # Lógica de curva como já estava
+                else: # Se o quadrado verde está 'atrás' da linha (mais alto na tela)
+                    # Lógica de curva
                     if centerx_grn > centerx_blk:
                         direction = "Curva verde à direita"
                     else:
