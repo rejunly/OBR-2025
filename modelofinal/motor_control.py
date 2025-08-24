@@ -1,5 +1,3 @@
-# motor_control.py
-
 import RPi.GPIO as GPIO
 import time
 
@@ -8,19 +6,19 @@ import time
 # ===================================================================
 
 # --- Pinos GPIO ---
-IN1_L, IN2_L, EN_L = 17, 18, 27
-IN1_R, IN2_R, EN_R = 22, 23, 24
+IN1_L, IN2_L, EN_L = 21, 20, 12
+IN1_R, IN2_R, EN_R = 16, 19, 13
 
 # --- Parâmetros PID (Ajuste estes valores!) ---
 KP, KI, KD = 0.4, 0.0, 0.05
 
 # --- Parâmetros de Velocidade (Ajuste estes valores!) ---
-BASE_SPEED = 40
-INTERSECTION_SPEED = 30
-TURN_SPEED = 60
+BASE_SPEED = 15
+INTERSECTION_SPEED = 15
+TURN_SPEED = 15 
 
 # --- Parâmetros de Manobra (Calibre estes valores!) ---
-TURN_DURATION_90 = 0.45   # Segundos para girar 90 graus
+
 TURN_DURATION_180 = 0.9   # Segundos para girar 180 graus
 FORWARD_DURATION = 0.2    # Segundos para avançar um pouco antes de virar
 
@@ -38,7 +36,6 @@ ACTION_DELAY_SECONDS = 0.5 # Delay para evitar comandos duplicados
 def setup_motors():
     """Configura os pinos GPIO para os motores. Chame isso uma vez no início."""
     global pwm_L, pwm_R
-    # Usar um try-except aqui é uma boa prática em hardware
     try:
         GPIO.setmode(GPIO.BCM)
         GPIO.setwarnings(False)
@@ -50,7 +47,6 @@ def setup_motors():
         print("Módulo de Controle: Motores configurados.")
     except Exception as e:
         print(f"Módulo de Controle: Erro no setup do RPi.GPIO: {e}")
-        # Lança a exceção para que o programa principal saiba que falhou
         raise e
 
 def set_motor_speed(motor, speed):
@@ -75,7 +71,6 @@ def full_stop_and_cleanup():
     print("Módulo de Controle: Limpando pinos GPIO.")
     if pwm_L: pwm_L.stop()
     if pwm_R: pwm_R.stop()
-    # Apenas limpa se a biblioteca GPIO foi inicializada com sucesso
     if GPIO.getmode() is not None:
         GPIO.cleanup()
 
@@ -100,7 +95,7 @@ def _follow_line_pid(error, base_speed):
     set_motor_speed('R', max(-100, min(100, speed_R)))
 
 def _turn(direction, speed, duration):
-    """Lógica interna para giros."""
+    """Lógica interna para giros (usado apenas para Meia Volta)."""
     if direction == 'left':
         set_motor_speed('L', -speed)
         set_motor_speed('R', speed)
@@ -124,7 +119,6 @@ def _move_forward(speed, duration):
 def gerenciar_movimento(acao, erro):
     """
     Recebe a ação da visão computacional e executa o movimento correspondente.
-    Esta é a principal função de interface do módulo.
     """
     global last_action_time
     current_time = time.time()
@@ -139,22 +133,23 @@ def gerenciar_movimento(acao, erro):
     elif "Seguir em Frente" in acao:
         _follow_line_pid(erro, base_speed=INTERSECTION_SPEED)
     
+    # --- LÓGICA DE CURVA ATUALIZADA ---
     elif "Curva de 90 para Direita" in acao or "Virar a Direita" in acao:
-        print("Módulo de Controle: Executando curva de 90 para a direita.")
+        print("Módulo de Controle: Centralizando para curva à direita.")
         _move_forward(INTERSECTION_SPEED, FORWARD_DURATION)
-        _turn('right', TURN_SPEED, TURN_DURATION_90)
+        # A função _turn foi removida. O PID assumirá no próximo ciclo.
         last_action_time = time.time()
     
     elif "Curva de 90 para Esquerda" in acao or "Virar a Esquerda" in acao:
-        print("Módulo de Controle: Executando curva de 90 para a esquerda.")
+        print("Módulo de Controle: Centralizando para curva à esquerda.")
         _move_forward(INTERSECTION_SPEED, FORWARD_DURATION)
-        _turn('left', TURN_SPEED, TURN_DURATION_90)
+        # A função _turn foi removida. O PID assumirá no próximo ciclo.
         last_action_time = time.time()
         
     elif "Meia Volta" in acao:
         print("Módulo de Controle: Executando meia volta.")
         _move_forward(INTERSECTION_SPEED, FORWARD_DURATION)
-        _turn('right', TURN_SPEED, TURN_DURATION_180)
+        _turn('right', TURN_SPEED, TURN_DURATION_180) # A Meia Volta ainda precisa do giro fixo
         last_action_time = time.time()
 
     elif "Procurando Linha" in acao:
