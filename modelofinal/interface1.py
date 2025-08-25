@@ -391,19 +391,26 @@ class TelaRodada:
         else: self.acao = "Seguindo Linha"
 
         # Lógica de Seguimento de Linha
-        self.erro = 0
+        # --- Lógica de Seguimento de Linha NOVA E MELHORADA ---
+        self.erro = 0 # Reseta o erro
         if "Seguindo Linha" in self.acao or "Seguir em Frente" in self.acao:
+            # Aumente a altura da ROI para uma leitura mais estável
+            self.ROI_LINE_HEIGHT = 40 # Aumentado de 20 para 40
             roi_line_slice = gray_frame[self.ROI_LINE_Y : self.ROI_LINE_Y + self.ROI_LINE_HEIGHT, 0 : FRAME_WIDTH]
+            
+            # Binariza a imagem para encontrar a linha preta
             _, mask_line = cv2.threshold(roi_line_slice, calib['THRESHOLD_VALUE'], 255, cv2.THRESH_BINARY_INV)
-            contours, _ = cv2.findContours(mask_line, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            if contours:
-                largest_contour = max(contours, key=cv2.contourArea)
-                if cv2.contourArea(largest_contour) > 100:
-                    M = cv2.moments(largest_contour)
-                    if M["m00"] != 0:
-                        cx = int(M["m10"] / M["m00"])
-                        self.erro = cx - FRAME_WIDTH // 2
+            
+            # Calcula os momentos da imagem binarizada
+            M = cv2.moments(mask_line)
+            
+            if M["m00"] > 0: # Verifica se algum pixel preto foi encontrado
+                # Calcula o centro de massa de todos os pixels pretos
+                cx = int(M["m10"] / M["m00"])
+                # Calcula o erro em relação ao centro da imagem
+                self.erro = cx - FRAME_WIDTH // 2
             else:
+                # Se nenhuma linha for encontrada, aciona a busca
                 self.acao = "Procurando Linha..."
         
         # --- PASSO 2: DELEGAR O MOVIMENTO PARA O MÓDULO DE CONTROLE ---
