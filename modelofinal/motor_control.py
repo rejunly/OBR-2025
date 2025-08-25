@@ -133,17 +133,22 @@ def gerenciar_movimento(acao, erro):
     elif "Seguir em Frente" in acao:
         _follow_line_pid(erro, base_speed=INTERSECTION_SPEED)
     
-    # --- LÓGICA DE CURVA ATUALIZADA ---
+        # --- LÓGICA DE CURVA ATUALIZADA ---
+       # --- LÓGICA DE CURVA NOVA E MELHORADA ---
     elif "Curva de 90 para Direita" in acao or "Virar a Direita" in acao:
-        print("Módulo de Controle: Centralizando para curva à direita.")
-        _move_forward(INTERSECTION_SPEED, FORWARD_DURATION)
-        # A função _turn foi removida. O PID assumirá no próximo ciclo.
+        print("Módulo de Controle: Executando curva de 90 graus à direita.")
+        # Avança um pouco para alinhar o robô com o centro da curva
+        _move_forward(INTERSECTION_SPEED, 0.25) 
+        # Gira no próprio eixo para a direita por um tempo calibrado
+        _turn('right', TURN_SPEED, 0.5) # Calibre este valor de tempo (0.5s)
         last_action_time = time.time()
-    
+        
     elif "Curva de 90 para Esquerda" in acao or "Virar a Esquerda" in acao:
-        print("Módulo de Controle: Centralizando para curva à esquerda.")
-        _move_forward(INTERSECTION_SPEED, FORWARD_DURATION)
-        # A função _turn foi removida. O PID assumirá no próximo ciclo.
+        print("Módulo de Controle: Executando curva de 90 graus à esquerda.")
+        # Avança um pouco para alinhar o robô com o centro da curva
+        _move_forward(INTERSECTION_SPEED, 0.25)
+        # Gira no próprio eixo para a esquerda por um tempo calibrado
+        _turn('left', TURN_SPEED, 0.5) # Calibre este valor de tempo (0.5s)
         last_action_time = time.time()
         
     elif "Meia Volta" in acao:
