@@ -9,33 +9,32 @@ import time
 IN1_L, IN2_L, EN_L = 21, 20, 12
 IN1_R, IN2_R, EN_R = 16, 19, 13
 
-# --- Parâmetros PID (Ajuste estes valores!) ---
+# --- Parâmetros PID (Valores iniciais para calibração) ---
 KP, KI, KD = 0.4, 0.0, 0.05
+INTEGRAL_MAX = 50 # <<< MELHORIA: Limite para evitar "Integral Windup"
 
 # --- Parâmetros de Velocidade (Ajuste estes valores!) ---
 BASE_SPEED = 15
 INTERSECTION_SPEED = 15
-TURN_SPEED = 15
-# <<< NOVO PARÂMETRO DE VELOCIDADE PARA GAPS >>>
-GAP_SPEED = 20 # Velocidade um pouco maior para passar rápido pelo gap
+TURN_SPEED = 15 
 
 # --- Parâmetros de Manobra (Calibre estes valores!) ---
-TURN_DURATION_180 = 0.9   # Segundos para girar 180 graus
-FORWARD_DURATION = 0.2    # Segundos para avançar um pouco antes de virar
+TURN_DURATION_180 = 0.9
+FORWARD_DURATION = 0.2
 
 # --- Variáveis de Estado Internas do Módulo ---
 last_error = 0
 integral = 0
 pwm_L, pwm_R = None, None
 last_action_time = 0
-ACTION_DELAY_SECONDS = 0.5 # Delay para evitar comandos duplicados
+ACTION_DELAY_SECONDS = 0.5
 
 # ===================================================================
 # --- FUNÇÕES DE BAIXO NÍVEL (Controle direto dos motores) ---
 # ===================================================================
 
 def setup_motors():
-    """Configura os pinos GPIO para os motores. Chame isso uma vez no início."""
+    """Configura os pinos GPIO para os motores."""
     global pwm_L, pwm_R
     try:
         GPIO.setmode(GPIO.BCM)
@@ -45,30 +44,29 @@ def setup_motors():
         pwm_R = GPIO.PWM(EN_R, 1000)
         pwm_L.start(0)
         pwm_R.start(0)
-        print("Módulo de Controle: Motores configurados.")
     except Exception as e:
         print(f"Módulo de Controle: Erro no setup do RPi.GPIO: {e}")
         raise e
 
 def set_motor_speed(motor, speed):
     """Define a velocidade de um motor individual (-100 a 100)."""
+    # Limita a velocidade para garantir que não ultrapasse 100%
+    speed = max(-100, min(100, speed))
     if speed > 0:
-        if motor == 'L': GPIO.output(IN1_L, GPIO.HIGH); GPIO.output(IN2_L, GPIO.LOW); pwm_L.ChangeDutyCycle(min(100, speed))
-        elif motor == 'R': GPIO.output(IN1_R, GPIO.HIGH); GPIO.output(IN2_R, GPIO.LOW); pwm_R.ChangeDutyCycle(min(100, speed))
+        if motor == 'L': GPIO.output(IN1_L, GPIO.HIGH); GPIO.output(IN2_L, GPIO.LOW); pwm_L.ChangeDutyCycle(speed)
+        elif motor == 'R': GPIO.output(IN1_R, GPIO.HIGH); GPIO.output(IN2_R, GPIO.LOW); pwm_R.ChangeDutyCycle(speed)
     elif speed < 0:
-        if motor == 'L': GPIO.output(IN1_L, GPIO.LOW); GPIO.output(IN2_L, GPIO.HIGH); pwm_L.ChangeDutyCycle(min(100, abs(speed)))
-        elif motor == 'R': GPIO.output(IN1_R, GPIO.LOW); GPIO.output(IN2_R, GPIO.HIGH); pwm_R.ChangeDutyCycle(min(100, abs(speed)))
+        if motor == 'L': GPIO.output(IN1_L, GPIO.LOW); GPIO.output(IN2_L, GPIO.HIGH); pwm_L.ChangeDutyCycle(abs(speed))
+        elif motor == 'R': GPIO.output(IN1_R, GPIO.LOW); GPIO.output(IN2_R, GPIO.HIGH); pwm_R.ChangeDutyCycle(abs(speed))
     else:
         if motor == 'L': pwm_L.ChangeDutyCycle(0)
         elif motor == 'R': pwm_R.ChangeDutyCycle(0)
 
 def stop_all_motors():
-    """Para ambos os motores."""
     set_motor_speed('L', 0)
     set_motor_speed('R', 0)
 
 def full_stop_and_cleanup():
-    """Para os motores e limpa os pinos GPIO. Chame ao sair do programa."""
     print("Módulo de Controle: Limpando pinos GPIO.")
     if pwm_L: pwm_L.stop()
     if pwm_R: pwm_R.stop()
@@ -80,34 +78,32 @@ def full_stop_and_cleanup():
 # ===================================================================
 
 def _calculate_pid(error):
-    """Lógica interna do cálculo PID."""
+    """Lógica interna do cálculo PID com proteção contra Windup."""
     global integral, last_error
+    
     integral += error
+    # <<< MELHORIA: Aplica o limite no termo integral >>>
+    if integral > INTEGRAL_MAX: integral = INTEGRAL_MAX
+    elif integral < -INTEGRAL_MAX: integral = -INTEGRAL_MAX
+        
     derivative = error - last_error
     last_error = error
     return KP * error + KI * integral + KD * derivative
 
 def _follow_line_pid(error, base_speed):
-    """Lógica interna de seguir linha."""
     pid_output = _calculate_pid(error)
     speed_L = base_speed - pid_output
     speed_R = base_speed + pid_output
-    set_motor_speed('L', max(-100, min(100, speed_L)))
-    set_motor_speed('R', max(-100, min(100, speed_R)))
+    set_motor_speed('L', speed_L)
+    set_motor_speed('R', speed_R)
 
 def _turn(direction, speed, duration):
-    """Lógica interna para giros (usado apenas para Meia Volta)."""
-    if direction == 'left':
-        set_motor_speed('L', -speed)
-        set_motor_speed('R', speed)
-    else: # right
-        set_motor_speed('L', speed)
-        set_motor_speed('R', -speed)
+    if direction == 'left': set_motor_speed('L', -speed); set_motor_speed('R', speed)
+    else: set_motor_speed('L', speed); set_motor_speed('R', -speed)
     time.sleep(duration)
     stop_all_motors()
 
 def _move_forward(speed, duration):
-    """Lógica interna para mover para frente."""
     set_motor_speed('L', speed)
     set_motor_speed('R', speed)
     time.sleep(duration)
@@ -116,54 +112,39 @@ def _move_forward(speed, duration):
 # ===================================================================
 # --- FUNÇÃO PRINCIPAL (A única que o main vai chamar) ---
 # ===================================================================
-
 def gerenciar_movimento(acao, erro):
-    """
-    Recebe a ação da visão computacional e executa o movimento correspondente.
-    """
-    global last_action_time
+    """Recebe a ação da visão computacional e executa o movimento correspondente."""
+    global last_action_time, integral # Reseta o integral ao mudar de ação
     current_time = time.time()
 
-    # O delay foi removido daqui para permitir reações mais rápidas no PID,
-    # mas mantido para as manobras especiais.
-
-    if acao == "Seguindo Linha":
+    if "Seguindo Linha" in acao or "Seguir em Frente" in acao or "Atravessando Gap" in acao:
         _follow_line_pid(erro, base_speed=BASE_SPEED)
     
-    elif "Seguir em Frente" in acao:
-        _follow_line_pid(erro, base_speed=INTERSECTION_SPEED)
-
-    # <<< NOVA LÓGICA PARA ATRAVESSAR GAPS >>>
-    elif acao == "Atravessando Gap":
-        # Segue em frente com uma leve correção baseada no último erro conhecido
-        # Isso ajuda a manter a trajetória em gaps que ocorrem em curvas
-        _follow_line_pid(erro, base_speed=GAP_SPEED)
-
-    # --- LÓGICA DE CURVA ATUALIZADA ---
-    elif "Curva de 90 para Direita" in acao or "Virar a Direita" in acao:
-        if current_time - last_action_time < ACTION_DELAY_SECONDS: return
-        print("Módulo de Controle: Executando curva de 90 graus à direita.")
-        _move_forward(INTERSECTION_SPEED, 0.25)
-        _turn('right', TURN_SPEED, 0.5)
+    # Manobras que precisam de delay para não serem repetidas
+    elif "Curva" in acao or "Virar" in acao or "Meia Volta" in acao:
+        if current_time - last_action_time < ACTION_DELAY_SECONDS:
+            stop_all_motors()
+            return
+        
+        integral = 0 # Zera o integral antes de uma manobra brusca
         last_action_time = time.time()
         
-    elif "Curva de 90 para Esquerda" in acao or "Virar a Esquerda" in acao:
-        if current_time - last_action_time < ACTION_DELAY_SECONDS: return
-        print("Módulo de Controle: Executando curva de 90 graus à esquerda.")
-        _move_forward(INTERSECTION_SPEED, 0.25)
-        _turn('left', TURN_SPEED, 0.5)
-        last_action_time = time.time()
-        
-    elif "Meia Volta" in acao:
-        if current_time - last_action_time < ACTION_DELAY_SECONDS: return
-        print("Módulo de Controle: Executando meia volta.")
-        _move_forward(INTERSECTION_SPEED, FORWARD_DURATION)
-        _turn('right', TURN_SPEED, TURN_DURATION_180)
-        last_action_time = time.time()
+        if "Curva de 90 para Direita" in aco or "Virar a Direita" in acao:
+            _move_forward(INTERSECTION_SPEED, 0.25) 
+            _turn('right', TURN_SPEED, 0.5)
+            
+        elif "Curva de 90 para Esquerda" in acao or "Virar a Esquerda" in acao:
+            _move_forward(INTERSECTION_SPEED, 0.25)
+            _turn('left', TURN_SPEED, 0.5)
+            
+        elif "Meia Volta" in acao:
+            _move_forward(INTERSECTION_SPEED, FORWARD_DURATION)
+            _turn('right', TURN_SPEED, TURN_DURATION_180)
 
     elif "Procurando Linha" in acao:
+        integral = 0 # Zera o integral ao procurar a linha
         set_motor_speed('L', 35)
         set_motor_speed('R', -35)
     
-    else:
+    else: # Parada
         stop_all_motors()
