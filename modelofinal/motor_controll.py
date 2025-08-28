@@ -22,6 +22,11 @@ TURN_SPEED = 15
 TURN_DURATION_180 = 0.9
 FORWARD_DURATION = 0.2
 
+# <<< NOVOS PARÂMETROS PARA DESVIO DE OBSTÁCULO >>>
+OBSTACLE_TURN_DURATION = 0.4  # Tempo para virar 45-60 graus
+OBSTACLE_FORWARD_DURATION = 0.7 # Tempo para avançar ao lado do obstáculo
+OBSTACLE_TURN_SPEED = 20
+
 # --- Variáveis de Estado Internas do Módulo ---
 last_error = 0
 integral = 0
