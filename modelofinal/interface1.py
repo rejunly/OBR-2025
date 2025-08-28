@@ -271,50 +271,61 @@ class TelaRodada:
         return "Branco"
 
     def update(self):
-        if not self.cap or not self.cap.isOpened(): self.acao = "Câmera Desconectada"; motor_control.stop_all_motors(); return
+        if not self.cap or not self.cap.isOpened(): 
+            self.acao = "Câmera Desconectada"
+            motor_control.stop_all_motors()
+            return
+        
         ret, self.frame = self.cap.read()
-        if not ret: self.acao = "Falha na Captura"; motor_control.stop_all_motors(); return
+        if not ret: 
+            self.acao = "Falha na Captura"
+            motor_control.stop_all_motors()
+            return
         
         calib = self.app.calib_vars
         gray_frame = cv2.cvtColor(self.frame, cv2.COLOR_BGR2GRAY)
-        hsv_frame = cv2.cvtColor(self.frame, cv2.COLOR_BGR2HSV)
-        zone_states = {name: self.get_zone_state(hsv_frame, gray_frame, roi, calib) for name, roi in self.ZONAS.items()}
         
-        # --- NOVA LÓGICA DE DECISÃO HIERÁRQUICA ---
+        # --- LÓGICA OTIMIZADA ---
+        # 1. Tente seguir a linha primeiro (operação mais barata)
+        roi_line = gray_frame[self.ROI_LINE_Y : self.ROI_LINE_Y + self.ROI_LINE_HEIGHT, :]
+        _, mask = cv2.threshold(roi_line, calib['THRESHOLD_VALUE'], 255, cv2.THRESH_BINARY_INV)
+        M = cv2.moments(mask)
         
-        # 1. PRIORIDADE MÁXIMA: VERMELHO (FIM DE PROVA)
-        if any(state == "Vermelho" for state in zone_states.values()):
-            self.acao = "Fim de Pista"
+        line_detected = M["m00"] > 0
         
-        # 2. SEGUNDA PRIORIDADE: MANOBRAS ESPECIAIS (CURVAS, VERDE, ETC.)
-        elif zone_states['BE'] == "Preto" and zone_states['BD'] == "Preto": self.acao = "Seguir em Frente"
-        elif zone_states['BD'] == "Verde" and zone_states['BE'] == "Verde": self.acao = "Meia Volta"
-        # Adicione outras regras de manobra aqui...
-        elif zone_states['CE'] == "Preto" and zone_states['CD'] == "Branco" and zone_states['CM'] == "Branco": self.acao = "Curva de 90 Esquerda"
-        elif zone_states['CD'] == "Preto" and zone_states['CE'] == "Branco" and zone_states['CM'] == "Branco": self.acao = "Curva de 90 Direita"
-        
-        # 3. TERCEIRA PRIORIDADE: SEGUIR LINHA NORMALMENTE
-        else:
-            self.acao = "Seguindo Linha"
-            roi_line = gray_frame[self.ROI_LINE_Y : self.ROI_LINE_Y + self.ROI_LINE_HEIGHT, :]
-            _, mask = cv2.threshold(roi_line, calib['THRESHOLD_VALUE'], 255, cv2.THRESH_BINARY_INV)
-            M = cv2.moments(mask)
+        if line_detected:
+            self.gap_counter = 0
+            cx = int(M["m10"] / M["m00"])
+            self.erro = cx - FRAME_WIDTH // 2
+            self.last_erro = self.erro
             
-            if M["m00"] > 0:
-                cx = int(M["m10"] / M["m00"])
-                self.erro = cx - FRAME_WIDTH // 2
-                self.last_erro = self.erro
-                self.gap_counter = 0
-            
-            # 4. ÚLTIMO RECURSO: LÓGICA DE GAP/PROCURAR LINHA
-            else:
-                self.gap_counter += 1
-                if self.gap_counter < self.MAX_GAP_FRAMES:
-                    self.acao = "Atravessando Gap"
-                    self.erro = self.last_erro
+            # 2. APENAS SE a linha for detectada e reta (erro baixo), cheque as zonas
+            # Isso evita processamento pesado em curvas ou quando o robô está perdido
+            if abs(self.erro) < 50: # Se o robô está bem centralizado, pode haver uma intersecção
+                hsv_frame = cv2.cvtColor(self.frame, cv2.COLOR_BGR2HSV)
+                zone_states = {name: self.get_zone_state(hsv_frame, gray_frame, roi, calib) for name, roi in self.ZONAS.items()}
+
+                # Lógica de Decisão Hierárquica (igual à sua, mas dentro da condição)
+                if any(state == "Vermelho" for state in zone_states.values()):
+                    self.acao = "Fim de Pista"
+                elif zone_states['BE'] == "Preto" and zone_states['BD'] == "Preto": self.acao = "Seguir em Frente"
+                elif zone_states['BD'] == "Verde" and zone_states['BE'] == "Verde": self.acao = "Meia Volta"
+                elif zone_states['CE'] == "Preto" and zone_states['CD'] == "Branco" and zone_states['CM'] == "Branco": self.acao = "Curva de 90 Esquerda"
+                elif zone_states['CD'] == "Preto" and zone_states['CE'] == "Branco" and zone_states['CM'] == "Branco": self.acao = "Curva de 90 Direita"
                 else:
-                    self.acao = "Procurando Linha"
-                    self.erro = 0
+                    self.acao = "Seguindo Linha"
+            else:
+                 self.acao = "Seguindo Linha" # Se o erro for alto (em curva), apenas siga a linha
+
+        # 3. Se a linha não for detectada (GAP ou fim de linha)
+        else:
+            self.gap_counter += 1
+            if self.gap_counter < self.MAX_GAP_FRAMES:
+                self.acao = "Atravessando Gap"
+                self.erro = self.last_erro # Mantenha o último erro conhecido
+            else:
+                self.acao = "Procurando Linha"
+                self.erro = 0 # O erro é 0, mas a ação fará ele girar para procurar
         
         # Envia comando final para os motores
         if self.acao == "Fim de Pista":
@@ -322,7 +333,14 @@ class TelaRodada:
         else:
             motor_control.gerenciar_movimento(self.acao, self.erro)
         
-        self.frame = self.visualize_rois(self.frame.copy(), zone_states)
+        # A visualização de ROIs continua a mesma, mas precisaremos dos zone_states
+        # Para evitar erros, inicializamos zone_states caso não seja calculado
+        try:
+            zone_states_for_viz = zone_states
+        except NameError:
+            zone_states_for_viz = {name: "N/A" for name in self.ZONAS.keys()}
+            
+        self.frame = self.visualize_rois(self.frame.copy(), zone_states_for_viz)
 
     def visualize_rois(self, display_frame, zone_states):
         cv2.rectangle(display_frame, (0, self.ROI_LINE_Y), (FRAME_WIDTH, self.ROI_LINE_Y + self.ROI_LINE_HEIGHT), (255, 255, 0), 2)
