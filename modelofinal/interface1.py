@@ -179,7 +179,7 @@ class TelaCalibracao:
         self.white_samples = []
 
     def start(self):
-        self.cap = cv2.VideoCapture(0, cv2.CAP_V4L2)
+        self.cap = cv2.VideoCapture(0) # Removido CAP_V4L2 para compatibilidade
         if not self.cap.isOpened():
             print("Erro: Não foi possível abrir a webcam.")
             self.app.state = 'inicio'
@@ -300,6 +300,12 @@ class TelaRodada:
         
         self.erro, self.acao, self.area = 0, "Iniciando...", "Percurso"
         
+        # <<< NOVAS VARIÁVEIS PARA LÓGICA DE GAP >>>
+        self.last_erro = 0
+        self.gap_counter = 0
+        self.MAX_GAP_FRAMES = 15 # O robô tentará atravessar o gap por 15 frames (~0.25s)
+                                 # Aumente este valor para gaps mais longos.
+        
         # Zonas de Interesse (ROI)
         self.ROI_CM = (int(262.47), int(8.34), int(116.07), int(85.3))
         self.ROI_CE = (int(64), int(131), int(186), int(85))
@@ -313,7 +319,7 @@ class TelaRodada:
         self.ROI_LINE_HEIGHT = 20
 
     def start(self):
-        self.cap = cv2.VideoCapture(0, cv2.CAP_V4L2)
+        self.cap = cv2.VideoCapture(0) # Removido CAP_V4L2 para compatibilidade
         if not self.cap.isOpened():
             print("Erro: Não foi possível abrir a webcam.")
             self.app.state = 'inicio'
@@ -321,10 +327,11 @@ class TelaRodada:
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, FRAME_WIDTH)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT)
         self.acao, self.erro = "Procurando Linha", 0
+        self.last_erro = 0
+        self.gap_counter = 0
+
 
     def stop(self):
-        # <<< ADIÇÃO IMPORTANTE >>>
-        # Garante que os motores parem imediatamente ao sair da tela da rodada
         motor_control.stop_all_motors()
         if self.cap:
             self.cap.release()
@@ -339,38 +346,33 @@ class TelaRodada:
         roi_hsv = hsv_frame[y:y+h, x:x+w]
         roi_gray = gray_frame[y:y+h, x:x+w]
 
-        # 1. Checa por Verde (maior prioridade)
-        mask_green = cv2.inRange(roi_hsv, calib['LOWER_GREEN'], cal.get('UPPER_GREEN'))
+        mask_green = cv2.inRange(roi_hsv, calib['LOWER_GREEN'], calib['UPPER_GREEN'])
         if (cv2.countNonZero(mask_green) / total_pixels) * 100 > calib['GREEN_PERCENT_THRESH']:
             return "Verde"
 
-        # 2. Checa por Branco
         _, mask_white = cv2.threshold(roi_gray, calib['WHITE_THRESHOLD_LOWER'], 255, cv2.THRESH_BINARY)
         if (cv2.countNonZero(mask_white) / total_pixels) * 100 > calib['WHITE_PERCENT_THRESH']:
             return "Branco"
 
-        # 3. Checa por Preto
         _, mask_black = cv2.threshold(roi_gray, calib['THRESHOLD_VALUE'], 255, cv2.THRESH_BINARY_INV)
         if (cv2.countNonZero(mask_black) / total_pixels) * 100 > calib['BLACK_PERCENT_THRESH']:
             return "Preto"
             
-        # 4. Default
         return "Branco"
 
     def update(self):
         if not self.cap or not self.cap.isOpened():
             self.acao = "Câmera Desconectada"
-            motor_control.stop_all_motors() # Para o robô se a câmera falhar
+            motor_control.stop_all_motors()
             return
             
         ret, self.frame = self.cap.read()
         if not ret:
             self.frame = None
             self.acao = "Falha na Captura"
-            motor_control.stop_all_motors() # Para o robô se a captura falhar
+            motor_control.stop_all_motors()
             return
         
-        # --- PASSO 1: LÓGICA DE VISÃO PARA DEFINIR AÇÃO E ERRO ---
         calib = self.app.calib_vars
         display_frame = self.frame.copy()
         gray_frame = cv2.cvtColor(self.frame, cv2.COLOR_BGR2GRAY)
@@ -379,7 +381,7 @@ class TelaRodada:
         zone_states = {name: self.get_zone_state(hsv_frame, gray_frame, roi, calib) for name, roi in self.ZONAS.items()}
         cm, ce, cd, be, bd = zone_states['CM'], zone_states['CE'], zone_states['CD'], zone_states['BE'], zone_states['BD']
 
-        # Regras de Decisão
+        # Regras de Decisão de alto nível
         if be == "Preto" and bd == "Preto": self.acao = "Seguir em Frente (Intersecao T/Cruzamento)"
         elif bd == "Verde" and be == "Verde" and ce == "Preto" and cd == "Preto": self.acao = "Meia Volta"
         elif bd == "Branco" and be == "Verde" and ce == "Preto" and cd == "Preto": self.acao = "Virar a Esquerda (Obstaculo Direita)"
@@ -390,34 +392,34 @@ class TelaRodada:
         elif cd == "Preto" and ce == "Branco" and be == "Branco" and bd == "Branco" and cm == "Branco": self.acao = "Curva de 90 para Direita"
         else: self.acao = "Seguindo Linha"
 
-        # Lógica de Seguimento de Linha
-        # --- Lógica de Seguimento de Linha NOVA E MELHORADA ---
-        self.erro = 0 # Reseta o erro
+
+        # --- LÓGICA DE SEGUIMENTO DE LINHA E GAPS ---
+        linha_encontrada = False
         if "Seguindo Linha" in self.acao or "Seguir em Frente" in self.acao:
-            # Aumente a altura da ROI para uma leitura mais estável
-            self.ROI_LINE_HEIGHT = 40 # Aumentado de 20 para 40
             roi_line_slice = gray_frame[self.ROI_LINE_Y : self.ROI_LINE_Y + self.ROI_LINE_HEIGHT, 0 : FRAME_WIDTH]
-            
-            # Binariza a imagem para encontrar a linha preta
             _, mask_line = cv2.threshold(roi_line_slice, calib['THRESHOLD_VALUE'], 255, cv2.THRESH_BINARY_INV)
-            
-            # Calcula os momentos da imagem binarizada
             M = cv2.moments(mask_line)
             
-            if M["m00"] > 0: # Verifica se algum pixel preto foi encontrado
-                # Calcula o centro de massa de todos os pixels pretos
+            if M["m00"] > 0:
+                linha_encontrada = True
                 cx = int(M["m10"] / M["m00"])
-                # Calcula o erro em relação ao centro da imagem
                 self.erro = cx - FRAME_WIDTH // 2
+                self.last_erro = self.erro # Salva o último erro válido
+                self.gap_counter = 0 # Reseta o contador de gap
+            
+        if not linha_encontrada:
+            # Se a linha não foi encontrada, incrementa o contador
+            self.gap_counter += 1
+            if self.gap_counter < self.MAX_GAP_FRAMES:
+                # Se estiver dentro do limite, assume que é um gap
+                self.acao = "Atravessando Gap"
+                self.erro = self.last_erro # Usa a última direção conhecida
             else:
-                # Se nenhuma linha for encontrada, aciona a busca
+                # Se o limite foi excedido, está realmente perdido
                 self.acao = "Procurando Linha..."
-        
-        # --- PASSO 2: DELEGAR O MOVIMENTO PARA O MÓDULO DE CONTROLE ---
-        # <<< ESTA É A ADIÇÃO PRINCIPAL >>>
-        # A mágica da modularização está nesta única linha.
-        motor_control.gerenciar_movimento(self.acao, self.erro)
+                self.erro = 0 # Para de tentar corrigir e apenas gira
 
+        motor_control.gerenciar_movimento(self.acao, self.erro)
 
         # Visualização (desenha no frame da câmera)
         cv2.rectangle(display_frame, (0, self.ROI_LINE_Y), (FRAME_WIDTH, self.ROI_LINE_Y + self.ROI_LINE_HEIGHT), (255, 255, 0), 2)
@@ -468,11 +470,10 @@ class TelaRodada:
 
 # --- Ponto de Entrada do Programa ---
 if __name__ == '__main__':
-    # Garante que os assets sejam encontrados se o script for executado de outro diretório
     try:
         os.chdir(os.path.dirname(os.path.abspath(__file__)))
     except NameError:
-        pass # __file__ não está definido em alguns ambientes, como IDLE
+        pass 
     
     app = App()
     app.run()
