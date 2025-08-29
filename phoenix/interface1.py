@@ -20,9 +20,9 @@ GRAY_COLOR = (50, 50, 50)
 
 CAMERA_DISPLAY_SIZE = (430, 242)
 
-# --- Configurações da Webcam (OTIMIZADO) ---
-FRAME_WIDTH = 320  # Reduzido de 640
-FRAME_HEIGHT = 180 # Reduzido de 360
+# --- Configurações da Webcam (Valores desejados, mas o código vai adaptar-se) ---
+FRAME_WIDTH = 320
+FRAME_HEIGHT = 180
 
 # --- Classe Principal da Aplicação ---
 class App:
@@ -85,7 +85,7 @@ class App:
             self.handle_events()
             self.update()
             self.draw()
-            self.clock.tick(10)
+            self.clock.tick(30)
         self.quit_app()
 
     def handle_events(self):
@@ -115,7 +115,7 @@ class App:
         sys.exit()
 
 class TelaInicio:
-    # ... (sem alterações nesta classe) ...
+    # ... (sem alterações) ...
     def __init__(self, app):
         self.app = app
         self.btn_iniciar = pygame.Rect(25, 250, 430, 80)
@@ -145,9 +145,8 @@ class TelaInicio:
             elif self.btn_sair.collidepoint(event.pos):
                 self.app.running = False
 
-
 class TelaCalibracao:
-    # ... (sem alterações nesta classe, exceto pela resolução da câmera no start) ...
+    # ... (sem alterações) ...
     def __init__(self, app):
         self.app = app; self.cap = None; self.frame = None; self.gray_frame = None; self.hsv_frame = None
         self.step = 0; self.btn_proximo = pygame.Rect(SCREEN_WIDTH // 2 - 125, 550, 250, 60)
@@ -157,7 +156,6 @@ class TelaCalibracao:
     def start(self):
         self.cap = cv2.VideoCapture(0, cv2.CAP_V4L2)
         if not self.cap.isOpened(): print("Erro: Não foi possível abrir a webcam."); self.app.state = 'inicio'; return
-        # <<< RESOLUÇÃO AJUSTADA AQUI
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, FRAME_WIDTH); self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT)
         self.step = 0; self.black_samples, self.green_samples, self.white_samples, self.red_samples = [], [], [], []
 
@@ -194,6 +192,7 @@ class TelaCalibracao:
         self.app.screen.blit(texto_renderizado_botao, texto_renderizado_botao.get_rect(center=self.btn_proximo.center))
 
     def avancar_passo(self):
+        #... (código sem alterações)
         if self.step == 0 and self.black_samples:
             self.app.calib_vars['THRESHOLD_VALUE'] = int(np.mean(self.black_samples) + 30)
         elif self.step == 1 and self.green_samples:
@@ -211,45 +210,68 @@ class TelaCalibracao:
             print("Calibração finalizada."); self.stop(); self.app.state = 'inicio'
             
     def handle_event(self, event):
+        #... (código sem alterações)
         if event.type == pygame.KEYDOWN and event.key == pygame.K_RETURN: self.avancar_passo()
         if event.type == pygame.MOUSEBUTTONDOWN:
             if self.btn_proximo.collidepoint(event.pos): self.avancar_passo()
             elif self.camera_rect.collidepoint(event.pos):
                 x_gui, y_gui = event.pos
-                x_frame = int((x_gui - self.camera_rect.x) * (FRAME_WIDTH / CAMERA_DISPLAY_SIZE[0]))
-                y_frame = int((y_gui - self.camera_rect.y) * (FRAME_HEIGHT / CAMERA_DISPLAY_SIZE[1]))
+                # Precisamos saber o tamanho real do frame para a calibração também
+                frame_h, frame_w, _ = self.frame.shape if self.frame is not None else (FRAME_HEIGHT, FRAME_WIDTH, 0)
+                
+                x_frame = int((x_gui - self.camera_rect.x) * (frame_w / CAMERA_DISPLAY_SIZE[0]))
+                y_frame = int((y_gui - self.camera_rect.y) * (frame_h / CAMERA_DISPLAY_SIZE[1]))
 
-                if self.step == 0 and self.gray_frame is not None: self.black_samples.append(self.gray_frame[y_frame, x_frame])
-                elif self.step == 1 and self.hsv_frame is not None: self.green_samples.append(self.hsv_frame[y_frame, x_frame])
-                elif self.step == 2 and self.gray_frame is not None: self.white_samples.append(self.gray_frame[y_frame, x_frame])
-                elif self.step == 3 and self.hsv_frame is not None: self.red_samples.append(self.hsv_frame[y_frame, x_frame])
+                if 0 <= y_frame < frame_h and 0 <= x_frame < frame_w:
+                    if self.step == 0 and self.gray_frame is not None: self.black_samples.append(self.gray_frame[y_frame, x_frame])
+                    elif self.step == 1 and self.hsv_frame is not None: self.green_samples.append(self.hsv_frame[y_frame, x_frame])
+                    elif self.step == 2 and self.gray_frame is not None: self.white_samples.append(self.gray_frame[y_frame, x_frame])
+                    elif self.step == 3 and self.hsv_frame is not None: self.red_samples.append(self.hsv_frame[y_frame, x_frame])
 
 class TelaRodada:
-def __init__(self, app):
-    self.app = app; self.cap = None; self.frame = None;
-    self.camera_rect = pygame.Rect((SCREEN_WIDTH - CAMERA_DISPLAY_SIZE[0]) // 2, 100, CAMERA_DISPLAY_SIZE[0], CAMERA_DISPLAY_SIZE[1])
-    self.btn_parar = pygame.Rect(25, 700, 430, 70)
-    self.erro, self.acao, self.area = 0, "Iniciando...", "Percurso"
-    self.last_erro = 0; self.gap_counter = 0; self.MAX_GAP_FRAMES = 15
-    
-    # <<< AQUI ESTÃO AS COORDENADAS CORRIGIDAS PARA 320x180 >>>
-    # Se os valores originais eram (262, 8, 116, 85), os novos são (131, 4, 58, 42)
-    self.ROI_CM = (131, 4, 58, 42)
-    self.ROI_CE = (32, 65, 93, 42)
-    self.ROI_CD = (195, 65, 93, 42)
-    self.ROI_BE = (32, 137, 93, 42)
-    self.ROI_BD = (195, 137, 93, 42)
-    
-    self.ZONAS = {'CM': self.ROI_CM, 'CE': self.ROI_CE, 'CD': self.ROI_CD, 'BE': self.ROI_BE, 'BD': self.ROI_BD}
-    
-    # Coordenada da linha de seguimento também corrigida (240 -> 120, 40 -> 20)
-    self.ROI_LINE_Y = 120
-    self.ROI_LINE_HEIGHT = 20
+    def __init__(self, app):
+        self.app = app; self.cap = None; self.frame = None;
+        self.camera_rect = pygame.Rect((SCREEN_WIDTH - CAMERA_DISPLAY_SIZE[0]) // 2, 100, CAMERA_DISPLAY_SIZE[0], CAMERA_DISPLAY_SIZE[1])
+        self.btn_parar = pygame.Rect(25, 700, 430, 70)
+        self.erro, self.acao, self.area = 0, "Iniciando...", "Percurso"
+        self.last_erro = 0; self.gap_counter = 0; self.MAX_GAP_FRAMES = 15
+        
+        # <<< AS ROIs SERÃO CALCULADAS DINAMICAMENTE NO MÉTODO start() >>>
+        self.ZONAS = {}
+        self.ROI_LINE_Y = 0
+        self.ROI_LINE_HEIGHT = 0
+        self.frame_width = 0 # Armazenará a largura real do frame
+
     def start(self):
         self.cap = cv2.VideoCapture(0, cv2.CAP_V4L2)
-        if not self.cap.isOpened(): print("Erro: Não foi possível abrir a webcam."); self.app.state = 'inicio'; return
-        # <<< RESOLUÇÃO AJUSTADA AQUI
-        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, FRAME_WIDTH); self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT)
+        if not self.cap.isOpened():
+            print("Erro: Não foi possível abrir a webcam.")
+            self.app.state = 'inicio'
+            return
+
+        # Tentamos definir a resolução, mas vamos verificar o resultado
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, FRAME_WIDTH)
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT)
+        
+        # <<< A MÁGICA ACONTECE AQUI: PEGAMOS A RESOLUÇÃO REAL >>>
+        self.frame_width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        frame_height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        
+        print(f"AVISO: Resolução da câmara definida para {self.frame_width}x{frame_height}")
+
+        # <<< CALCULAMOS AS ROIs COM BASE NA RESOLUÇÃO REAL >>>
+        # Proporções baseadas na resolução original de 640x360
+        self.ROI_CM = (int(262/640 * self.frame_width), int(8/360 * frame_height), int(116/640 * self.frame_width), int(85/360 * frame_height))
+        self.ROI_CE = (int(64/640 * self.frame_width), int(131/360 * frame_height), int(186/640 * self.frame_width), int(85/360 * frame_height))
+        self.ROI_CD = (int(390/640 * self.frame_width), int(131/360 * frame_height), int(186/640 * self.frame_width), int(85/360 * frame_height))
+        self.ROI_BE = (int(64/640 * self.frame_width), int(275/360 * frame_height), int(186/640 * self.frame_width), int(85/360 * frame_height))
+        self.ROI_BD = (int(390/640 * self.frame_width), int(275/360 * frame_height), int(186/640 * self.frame_width), int(85/360 * frame_height))
+        
+        self.ZONAS = {'CM': self.ROI_CM, 'CE': self.ROI_CE, 'CD': self.ROI_CD, 'BE': self.ROI_BE, 'BD': self.ROI_BD}
+        
+        self.ROI_LINE_Y = int(240/360 * frame_height)
+        self.ROI_LINE_HEIGHT = int(40/360 * frame_height)
+        
         self.acao, self.erro, self.last_erro, self.gap_counter = "Iniciando...", 0, 0, 0
 
     def stop(self):
@@ -257,29 +279,24 @@ def __init__(self, app):
         if self.cap: self.cap.release(); self.cap = None
         self.app.state = 'inicio'
 
-    # <<< FUNÇÃO OTIMIZADA: RECEBE O FRAME INTEIRO E PROCESSA SÓ A ROI INTERNAMENTE
     def get_zone_state(self, frame, zone_roi, calib):
+        #... (código sem alterações)
         x, y, w, h = zone_roi
         roi_bgr = frame[y:y+h, x:x+w]
-        
         total_pixels = w * h
         if total_pixels == 0: return "Branco"
         
-        # <<< CONVERSÕES FEITAS APENAS NA ROI >>>
         roi_hsv = cv2.cvtColor(roi_bgr, cv2.COLOR_BGR2HSV)
         roi_gray = cv2.cvtColor(roi_bgr, cv2.COLOR_BGR2GRAY)
         
-        # 1. Checa por Vermelho (MAIOR PRIORIDADE)
         mask_r1 = cv2.inRange(roi_hsv, calib['LOWER_RED1'], calib['UPPER_RED1'])
         mask_r2 = cv2.inRange(roi_hsv, calib['LOWER_RED2'], calib['UPPER_RED2'])
         mask_red = mask_r1 + mask_r2
         if (cv2.countNonZero(mask_red) * 100 / total_pixels) > calib['RED_PERCENT_THRESH']: return "Vermelho"
         
-        # 2. Checa por Verde
         mask_green = cv2.inRange(roi_hsv, calib['LOWER_GREEN'], calib['UPPER_GREEN'])
         if (cv2.countNonZero(mask_green) * 100 / total_pixels) > calib['GREEN_PERCENT_THRESH']: return "Verde"
         
-        # 3. Checa por Preto
         _, mask_black = cv2.threshold(roi_gray, calib['THRESHOLD_VALUE'], 255, cv2.THRESH_BINARY_INV)
         if (cv2.countNonZero(mask_black) * 100 / total_pixels) > calib['BLACK_PERCENT_THRESH']: return "Preto"
         
@@ -291,12 +308,8 @@ def __init__(self, app):
         if not ret: self.acao = "Falha na Captura"; motor_control.stop_all_motors(); return
         
         calib = self.app.calib_vars
-
-        # <<< LÓGICA DE PROCESSAMENTO OTIMIZADA >>>
-        # A conversão de cores foi movida para dentro de get_zone_state
         zone_states = {name: self.get_zone_state(self.frame, roi, calib) for name, roi in self.ZONAS.items()}
         
-        # --- LÓGICA DE DECISÃO HIERÁRQUICA (sem alterações) ---
         if any(state == "Vermelho" for state in zone_states.values()):
             self.acao = "Fim de Pista"
         elif zone_states['BE'] == "Preto" and zone_states['BD'] == "Preto": self.acao = "Seguir em Frente"
@@ -305,7 +318,6 @@ def __init__(self, app):
         elif zone_states['CD'] == "Preto" and zone_states['CE'] == "Branco" and zone_states['CM'] == "Branco": self.acao = "Curva de 90 Direita"
         else:
             self.acao = "Seguindo Linha"
-            # É necessário converter a ROI da linha para cinza aqui
             gray_frame = cv2.cvtColor(self.frame, cv2.COLOR_BGR2GRAY)
             roi_line = gray_frame[self.ROI_LINE_Y : self.ROI_LINE_Y + self.ROI_LINE_HEIGHT, :]
             _, mask = cv2.threshold(roi_line, calib['THRESHOLD_VALUE'], 255, cv2.THRESH_BINARY_INV)
@@ -313,7 +325,7 @@ def __init__(self, app):
             
             if M["m00"] > 0:
                 cx = int(M["m10"] / M["m00"])
-                self.erro = cx - FRAME_WIDTH // 2
+                self.erro = (self.frame_width // 2) - cx # Usamos a largura real do frame
                 self.last_erro = self.erro
                 self.gap_counter = 0
             else:
@@ -333,8 +345,8 @@ def __init__(self, app):
         self.frame = self.visualize_rois(self.frame.copy(), zone_states)
 
     def visualize_rois(self, display_frame, zone_states):
-        # ... (sem alterações nesta função) ...
-        cv2.rectangle(display_frame, (0, self.ROI_LINE_Y), (FRAME_WIDTH, self.ROI_LINE_Y + self.ROI_LINE_HEIGHT), (255, 255, 0), 2)
+        #... (código sem alterações)
+        cv2.rectangle(display_frame, (0, self.ROI_LINE_Y), (self.frame_width, self.ROI_LINE_Y + self.ROI_LINE_HEIGHT), (255, 255, 0), 2)
         for name, roi in self.ZONAS.items():
             x, y, w, h = roi
             color = (255, 0, 255)
@@ -346,7 +358,7 @@ def __init__(self, app):
         return display_frame
 
     def draw(self):
-        # ... (sem alterações nesta função) ...
+        #... (código sem alterações)
         self.app.screen.blit(self.app.logo_pequeno, (SCREEN_WIDTH // 2 - 50, 0))
         if self.frame is not None:
             frame_rgb = cv2.cvtColor(self.frame, cv2.COLOR_BGR2RGB)
@@ -368,7 +380,6 @@ def __init__(self, app):
         pygame.draw.rect(self.app.screen, PURPLE_COLOR, self.btn_parar, border_radius=10)
         texto_parar = self.app.font_grande.render("PARAR LEITURA", True, WHITE_COLOR)
         self.app.screen.blit(texto_parar, texto_parar.get_rect(center=self.btn_parar.center))
-
 
     def handle_event(self, event):
         if (event.type == pygame.MOUSEBUTTONDOWN and self.btn_parar.collidepoint(event.pos)) or \
