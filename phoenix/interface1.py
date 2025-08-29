@@ -216,7 +216,6 @@ class TelaCalibracao:
             if self.btn_proximo.collidepoint(event.pos): self.avancar_passo()
             elif self.camera_rect.collidepoint(event.pos):
                 x_gui, y_gui = event.pos
-                # Precisamos saber o tamanho real do frame para a calibração também
                 frame_h, frame_w, _ = self.frame.shape if self.frame is not None else (FRAME_HEIGHT, FRAME_WIDTH, 0)
                 
                 x_frame = int((x_gui - self.camera_rect.x) * (frame_w / CAMERA_DISPLAY_SIZE[0]))
@@ -236,11 +235,10 @@ class TelaRodada:
         self.erro, self.acao, self.area = 0, "Iniciando...", "Percurso"
         self.last_erro = 0; self.gap_counter = 0; self.MAX_GAP_FRAMES = 15
         
-        # <<< AS ROIs SERÃO CALCULADAS DINAMICAMENTE NO MÉTODO start() >>>
         self.ZONAS = {}
         self.ROI_LINE_Y = 0
         self.ROI_LINE_HEIGHT = 0
-        self.frame_width = 0 # Armazenará a largura real do frame
+        self.frame_width = 0
 
     def start(self):
         self.cap = cv2.VideoCapture(0, cv2.CAP_V4L2)
@@ -249,32 +247,39 @@ class TelaRodada:
             self.app.state = 'inicio'
             return
 
-        # Tentamos definir a resolução, mas vamos verificar o resultado
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, FRAME_WIDTH)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT)
         
-        # <<< A MÁGICA ACONTECE AQUI: PEGAMOS A RESOLUÇÃO REAL >>>
         self.frame_width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         frame_height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         
         print(f"AVISO: Resolução da câmara definida para {self.frame_width}x{frame_height}")
 
-        # <<< CALCULAMOS AS ROIs COM BASE NA RESOLUÇÃO REAL >>>
-        # Proporções baseadas na resolução original de 640x360
-        self.ROI_CM = (int(262/640 * self.frame_width), int(8/360 * frame_height), int(116/640 * self.frame_width), int(85/360 * frame_height))
-        self.ROI_CE = (int(64/640 * self.frame_width), int(131/360 * frame_height), int(186/640 * self.frame_width), int(85/360 * frame_height))
-        self.ROI_CD = (int(390/640 * self.frame_width), int(131/360 * frame_height), int(186/640 * self.frame_width), int(85/360 * frame_height))
-        self.ROI_BE = (int(64/640 * self.frame_width), int(275/360 * frame_height), int(186/640 * self.frame_width), int(85/360 * frame_height))
-        self.ROI_BD = (int(390/640 * self.frame_width), int(275/360 * frame_height), int(186/640 * self.frame_width), int(85/360 * frame_height))
+        # <<< PROPORÇÕES AUMENTADAS PARA MAIOR ÁREA DE LEITURA >>>
+        # Proporções originais (x, y, w, h) baseadas no frame 640x360
+        # Novos valores são ~25% maiores em área (w*1.25, h*1.25) e recentralizados
+        
+        # ROI Central Superior (CM)
+        self.ROI_CM = (int(247/640 * self.frame_width), int(8/360 * frame_height), int(145/640 * self.frame_width), int(106/360 * frame_height))
+        # ROI Centro-Esquerda (CE)
+        self.ROI_CE = (int(41/640 * self.frame_width), int(120/360 * frame_height), int(232/640 * self.frame_width), int(106/360 * frame_height))
+        # ROI Centro-Direita (CD)
+        self.ROI_CD = (int(367/640 * self.frame_width), int(120/360 * frame_height), int(232/640 * self.frame_width), int(106/360 * frame_height))
+        # ROI Base-Esquerda (BE)
+        self.ROI_BE = (int(41/640 * self.frame_width), int(264/360 * frame_height), int(232/640 * self.frame_width), int(106/360 * frame_height))
+        # ROI Base-Direita (BD)
+        self.ROI_BD = (int(367/640 * self.frame_width), int(264/360 * frame_height), int(232/640 * self.frame_width), int(106/360 * frame_height))
         
         self.ZONAS = {'CM': self.ROI_CM, 'CE': self.ROI_CE, 'CD': self.ROI_CD, 'BE': self.ROI_BE, 'BD': self.ROI_BD}
         
-        self.ROI_LINE_Y = int(240/360 * frame_height)
-        self.ROI_LINE_HEIGHT = int(40/360 * frame_height)
+        # ROI de seguimento de linha (50% mais alta)
+        self.ROI_LINE_Y = int(230/360 * frame_height) 
+        self.ROI_LINE_HEIGHT = int(60/360 * frame_height)
         
         self.acao, self.erro, self.last_erro, self.gap_counter = "Iniciando...", 0, 0, 0
 
     def stop(self):
+        #... (código sem alterações)
         motor_control.stop_all_motors()
         if self.cap: self.cap.release(); self.cap = None
         self.app.state = 'inicio'
@@ -303,6 +308,7 @@ class TelaRodada:
         return "Branco"
 
     def update(self):
+        #... (código sem alterações)
         if not self.cap or not self.cap.isOpened(): self.acao = "Câmera Desconectada"; motor_control.stop_all_motors(); return
         ret, self.frame = self.cap.read()
         if not ret: self.acao = "Falha na Captura"; motor_control.stop_all_motors(); return
@@ -325,7 +331,7 @@ class TelaRodada:
             
             if M["m00"] > 0:
                 cx = int(M["m10"] / M["m00"])
-                self.erro = (self.frame_width // 2) - cx # Usamos a largura real do frame
+                self.erro = (self.frame_width // 2) - cx
                 self.last_erro = self.erro
                 self.gap_counter = 0
             else:
