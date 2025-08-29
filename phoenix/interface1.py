@@ -225,23 +225,26 @@ class TelaCalibracao:
                 elif self.step == 3 and self.hsv_frame is not None: self.red_samples.append(self.hsv_frame[y_frame, x_frame])
 
 class TelaRodada:
-    def __init__(self, app):
-        self.app = app; self.cap = None; self.frame = None;
-        self.camera_rect = pygame.Rect((SCREEN_WIDTH - CAMERA_DISPLAY_SIZE[0]) // 2, 100, CAMERA_DISPLAY_SIZE[0], CAMERA_DISPLAY_SIZE[1])
-        self.btn_parar = pygame.Rect(25, 700, 430, 70)
-        self.erro, self.acao, self.area = 0, "Iniciando...", "Percurso"
-        self.last_erro = 0; self.gap_counter = 0; self.MAX_GAP_FRAMES = 15
-        
-        # <<< ATENÇÃO: REAJUSTE ESTAS COORDENADAS PARA A RESOLUÇÃO 320x180 >>>
-        self.ROI_CM = (131, 4, 58, 42)      # Exemplo: (262, 8, 116, 85) / 2
-        self.ROI_CE = (32, 65, 93, 42)      # Exemplo: (64, 131, 186, 85) / 2
-        self.ROI_CD = (195, 65, 93, 42)     # Exemplo: (390, 131, 186, 85) / 2
-        self.ROI_BE = (32, 137, 93, 42)     # Exemplo: (64, 275, 186, 85) / 2
-        self.ROI_BD = (195, 137, 93, 42)    # Exemplo: (390, 275, 186, 85) / 2
-        self.ZONAS = {'CM': self.ROI_CM, 'CE': self.ROI_CE, 'CD': self.ROI_CD, 'BE': self.ROI_BE, 'BD': self.ROI_BD}
-        self.ROI_LINE_Y = 120 # Exemplo: 240 / 2
-        self.ROI_LINE_HEIGHT = 20 # Exemplo: 40 / 2
-
+def __init__(self, app):
+    self.app = app; self.cap = None; self.frame = None;
+    self.camera_rect = pygame.Rect((SCREEN_WIDTH - CAMERA_DISPLAY_SIZE[0]) // 2, 100, CAMERA_DISPLAY_SIZE[0], CAMERA_DISPLAY_SIZE[1])
+    self.btn_parar = pygame.Rect(25, 700, 430, 70)
+    self.erro, self.acao, self.area = 0, "Iniciando...", "Percurso"
+    self.last_erro = 0; self.gap_counter = 0; self.MAX_GAP_FRAMES = 15
+    
+    # <<< AQUI ESTÃO AS COORDENADAS CORRIGIDAS PARA 320x180 >>>
+    # Se os valores originais eram (262, 8, 116, 85), os novos são (131, 4, 58, 42)
+    self.ROI_CM = (131, 4, 58, 42)
+    self.ROI_CE = (32, 65, 93, 42)
+    self.ROI_CD = (195, 65, 93, 42)
+    self.ROI_BE = (32, 137, 93, 42)
+    self.ROI_BD = (195, 137, 93, 42)
+    
+    self.ZONAS = {'CM': self.ROI_CM, 'CE': self.ROI_CE, 'CD': self.ROI_CD, 'BE': self.ROI_BE, 'BD': self.ROI_BD}
+    
+    # Coordenada da linha de seguimento também corrigida (240 -> 120, 40 -> 20)
+    self.ROI_LINE_Y = 120
+    self.ROI_LINE_HEIGHT = 20
     def start(self):
         self.cap = cv2.VideoCapture(0, cv2.CAP_V4L2)
         if not self.cap.isOpened(): print("Erro: Não foi possível abrir a webcam."); self.app.state = 'inicio'; return
