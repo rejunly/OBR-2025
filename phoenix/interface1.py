@@ -4,7 +4,7 @@ import pygame
 import sys
 import os
 import motor_control
-import ultrassonico # <-- NOVO: Importa o módulo do sensor
+import ultrassonico 
 
 # --- Configurações da Interface Gráfica ---
 SCREEN_WIDTH = 480
