@@ -1,25 +1,20 @@
 import RPi.GPIO as GPIO
 import time
 
-# ===================================================================
-# --- CONFIGURAÇÕES E CONSTANTES DE MOVIMENTO (Tudo em um só lugar) ---
-# ===================================================================
-
 # --- Pinos GPIO ---
 IN1_L, IN2_L, EN_L = 21, 20, 12
 IN1_R, IN2_R, EN_R = 16, 19, 13
 
-# --- Parâmetros PID (Ajuste estes valores!) ---
+# --- Parâmetros PID --
 KP, KI, KD = 0.4, 0.0, 0.05
 
-# --- Parâmetros de Velocidade (Ajuste estes valores!) ---
+# --- Parâmetros de Velocidade ---
 BASE_SPEED = 15
 INTERSECTION_SPEED = 15
 TURN_SPEED = 15
-# <<< NOVO PARÂMETRO DE VELOCIDADE PARA GAPS >>>
-GAP_SPEED = 20 # Velocidade um pouco maior para passar rápido pelo gap
+GAP_SPEED = 20 
 
-# --- Parâmetros de Manobra (Calibre estes valores!) ---
+# --- Parâmetros de Manobra ---
 TURN_DURATION_180 = 0.9   # Segundos para girar 180 graus
 FORWARD_DURATION = 0.2    # Segundos para avançar um pouco antes de virar
 
@@ -124,8 +119,6 @@ def gerenciar_movimento(acao, erro):
     global last_action_time
     current_time = time.time()
 
-    # O delay foi removido daqui para permitir reações mais rápidas no PID,
-    # mas mantido para as manobras especiais.
 
     if acao == "Seguindo Linha":
         _follow_line_pid(erro, base_speed=BASE_SPEED)
@@ -133,13 +126,9 @@ def gerenciar_movimento(acao, erro):
     elif "Seguir em Frente" in acao:
         _follow_line_pid(erro, base_speed=INTERSECTION_SPEED)
 
-    # <<< NOVA LÓGICA PARA ATRAVESSAR GAPS >>>
     elif acao == "Atravessando Gap":
-        # Segue em frente com uma leve correção baseada no último erro conhecido
-        # Isso ajuda a manter a trajetória em gaps que ocorrem em curvas
         _follow_line_pid(erro, base_speed=GAP_SPEED)
 
-    # --- LÓGICA DE CURVA ATUALIZADA ---
     elif "Curva de 90 para Direita" in acao or "Virar a Direita" in acao:
         if current_time - last_action_time < ACTION_DELAY_SECONDS: return
         print("Módulo de Controle: Executando curva de 90 graus à direita.")
