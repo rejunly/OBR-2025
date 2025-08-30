@@ -153,7 +153,7 @@ class TelaCalibracao:
         self.black_samples, self.green_samples, self.white_samples, self.red_samples = [], [], [], []
 
     def start(self):
-        self.cap = cv2.VideoCapture(0, cv2.CAP_V4L2) # Mantendo o que funciona para você
+        self.cap = cv2.VideoCapture(0, cv2.CAP_V4L2) 
         if not self.cap.isOpened(): print("Erro: Não foi possível abrir a webcam."); self.app.state = 'inicio'; return
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, FRAME_WIDTH); self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT)
         self.step = 0; self.black_samples, self.green_samples, self.white_samples, self.red_samples = [], [], [], []
@@ -204,8 +204,6 @@ class TelaCalibracao:
         if self.step < 3: self.step += 1
         else:
             if self.red_samples:
-                # Lógica para o vermelho (que cruza o 0/180)
-                # Não calculamos a média, apenas usamos faixas padrão amplas que funcionam bem
                 print("Faixas de vermelho definidas para o padrão.")
             print("Calibração finalizada."); self.stop(); self.app.state = 'inicio'
             
@@ -337,7 +335,6 @@ class TelaRodada:
         return display_frame
 
     def draw(self):
-        # ... (O código de desenho permanece o mesmo) ...
         self.app.screen.blit(self.app.logo_pequeno, (SCREEN_WIDTH // 2 - 50, 0))
         if self.frame is not None:
             frame_rgb = cv2.cvtColor(self.frame, cv2.COLOR_BGR2RGB)
