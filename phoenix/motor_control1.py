@@ -9,16 +9,16 @@ import time
 IN1_L, IN2_L, EN_L = 21, 20, 12
 IN1_R, IN2_R, EN_R = 16, 19, 13
 
-# --- Parâmetros PID (Ajuste estes valores após otimizar a visão!) ---
+# --- Parâmetros PID ---
 KP, KI, KD = 0.3, 0.0, 0.02
 
-# --- Parâmetros de Velocidade (Ajuste estes valores!) ---
+# --- Parâmetros de Velocidade  ---
 BASE_SPEED = 20
 INTERSECTION_SPEED = 15
 TURN_SPEED = 15
 GAP_SPEED = 25 # Velocidade um pouco maior para passar rápido pelo gap
 
-# --- Parâmetros de Manobra (Calibre estes valores!) ---
+# --- Parâmetros de Manobra ---
 TURN_DURATION_90 = 0.5    # Segundos para girar 90 graus (CALIBRAR)
 TURN_DURATION_180 = 0.9   # Segundos para girar 180 graus (CALIBRAR)
 FORWARD_DURATION = 0.25   # Segundos para avançar um pouco antes de virar
@@ -52,7 +52,6 @@ def setup_motors():
 
 def set_motor_speed(motor, speed):
     """Define a velocidade de um motor individual (-100 a 100)."""
-    # ... (sem alterações nesta função) ...
     if speed > 0:
         if motor == 'L': GPIO.output(IN1_L, GPIO.HIGH); GPIO.output(IN2_L, GPIO.LOW); pwm_L.ChangeDutyCycle(min(100, speed))
         elif motor == 'R': GPIO.output(IN1_R, GPIO.HIGH); GPIO.output(IN2_R, GPIO.LOW); pwm_R.ChangeDutyCycle(min(100, speed))
@@ -105,7 +104,6 @@ def _turn(direction, speed, duration):
         set_motor_speed('L', speed)
         set_motor_speed('R', -speed)
     time.sleep(duration)
-    # Não paramos os motores aqui para permitir transições mais suaves se necessário
 
 def _move_forward(speed, duration):
     """Lógica interna para mover para frente."""
@@ -124,7 +122,6 @@ def gerenciar_movimento(acao, erro):
     global last_action_time
     current_time = time.time()
     
-    # Ações contínuas não precisam de delay
     if acao == "Seguindo Linha":
         _follow_line_pid(erro, base_speed=BASE_SPEED)
     elif "Seguir em Frente" in acao:
@@ -132,7 +129,6 @@ def gerenciar_movimento(acao, erro):
     elif acao == "Atravessando Gap":
         _follow_line_pid(erro, base_speed=GAP_SPEED)
     
-    # Manobras especiais (baseadas em tempo) devem ter um delay para não serem repetidas
     elif "Curva de 90" in acao:
         if current_time - last_action_time < ACTION_DELAY_SECONDS: return
         print(f"Módulo de Controle: Executando {acao}.")
