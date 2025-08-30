@@ -20,9 +20,9 @@ GRAY_COLOR = (50, 50, 50)
 
 CAMERA_DISPLAY_SIZE = (430, 242)
 
-# --- Configurações da Webcam ---
-FRAME_WIDTH = 640
-FRAME_HEIGHT = 360
+# --- Configurações da Webcam---
+FRAME_WIDTH = 320
+FRAME_HEIGHT = 180
 
 # --- Classe Principal da Aplicação ---
 class App:
@@ -64,7 +64,6 @@ class App:
             'WHITE_THRESHOLD_LOWER': 200,
             'LOWER_GREEN': np.array([40, 50, 50]),
             'UPPER_GREEN': np.array([80, 255, 255]),
-            # Vermelho tem duas faixas no HSV
             'LOWER_RED1': np.array([0, 70, 50]),
             'UPPER_RED1': np.array([10, 255, 255]),
             'LOWER_RED2': np.array([170, 70, 50]),
@@ -86,7 +85,7 @@ class App:
             self.handle_events()
             self.update()
             self.draw()
-            self.clock.tick(60)
+            self.clock.tick(30)
         self.quit_app()
 
     def handle_events(self):
@@ -153,7 +152,7 @@ class TelaCalibracao:
         self.black_samples, self.green_samples, self.white_samples, self.red_samples = [], [], [], []
 
     def start(self):
-        self.cap = cv2.VideoCapture(0, cv2.CAP_V4L2) 
+        self.cap = cv2.VideoCapture(0, cv2.CAP_V4L2)
         if not self.cap.isOpened(): print("Erro: Não foi possível abrir a webcam."); self.app.state = 'inicio'; return
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, FRAME_WIDTH); self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT)
         self.step = 0; self.black_samples, self.green_samples, self.white_samples, self.red_samples = [], [], [], []
@@ -213,13 +212,16 @@ class TelaCalibracao:
             if self.btn_proximo.collidepoint(event.pos): self.avancar_passo()
             elif self.camera_rect.collidepoint(event.pos):
                 x_gui, y_gui = event.pos
-                x_frame = int((x_gui - self.camera_rect.x) * (FRAME_WIDTH / CAMERA_DISPLAY_SIZE[0]))
-                y_frame = int((y_gui - self.camera_rect.y) * (FRAME_HEIGHT / CAMERA_DISPLAY_SIZE[1]))
+                frame_h, frame_w, _ = self.frame.shape if self.frame is not None else (FRAME_HEIGHT, FRAME_WIDTH, 0)
+                
+                x_frame = int((x_gui - self.camera_rect.x) * (frame_w / CAMERA_DISPLAY_SIZE[0]))
+                y_frame = int((y_gui - self.camera_rect.y) * (frame_h / CAMERA_DISPLAY_SIZE[1]))
 
-                if self.step == 0 and self.gray_frame is not None: self.black_samples.append(self.gray_frame[y_frame, x_frame])
-                elif self.step == 1 and self.hsv_frame is not None: self.green_samples.append(self.hsv_frame[y_frame, x_frame])
-                elif self.step == 2 and self.gray_frame is not None: self.white_samples.append(self.gray_frame[y_frame, x_frame])
-                elif self.step == 3 and self.hsv_frame is not None: self.red_samples.append(self.hsv_frame[y_frame, x_frame])
+                if 0 <= y_frame < frame_h and 0 <= x_frame < frame_w:
+                    if self.step == 0 and self.gray_frame is not None: self.black_samples.append(self.gray_frame[y_frame, x_frame])
+                    elif self.step == 1 and self.hsv_frame is not None: self.green_samples.append(self.hsv_frame[y_frame, x_frame])
+                    elif sel    f.step == 2 and self.gray_frame is not None: self.white_samples.append(self.gray_frame[y_frame, x_frame])
+                    elif self.step == 3 and self.hsv_frame is not None: self.red_samples.append(self.hsv_frame[y_frame, x_frame])
 
 class TelaRodada:
     def __init__(self, app):
@@ -229,15 +231,43 @@ class TelaRodada:
         self.erro, self.acao, self.area = 0, "Iniciando...", "Percurso"
         self.last_erro = 0; self.gap_counter = 0; self.MAX_GAP_FRAMES = 15
         
-        self.ROI_CM = (262, 8, 116, 85); self.ROI_CE = (64, 131, 186, 85); self.ROI_CD = (390, 131, 186, 85)
-        self.ROI_BE = (64, 275, 186, 85); self.ROI_BD = (390, 275, 186, 85)
-        self.ZONAS = {'CM': self.ROI_CM, 'CE': self.ROI_CE, 'CD': self.ROI_CD, 'BE': self.ROI_BE, 'BD': self.ROI_BD}
-        self.ROI_LINE_Y = 240; self.ROI_LINE_HEIGHT = 40
+        self.ZONAS = {}
+        self.ROI_LINE_Y = 0
+        self.ROI_LINE_HEIGHT = 0
+        self.frame_width = 0
 
     def start(self):
-        self.cap = cv2.VideoCapture(0, cv2.CAP_V4L2) # Mantendo o que funciona para você
-        if not self.cap.isOpened(): print("Erro: Não foi possível abrir a webcam."); self.app.state = 'inicio'; return
-        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, FRAME_WIDTH); self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT)
+        self.cap = cv2.VideoCapture(0, cv2.CAP_V4L2)
+        if not self.cap.isOpened():
+            print("Erro: Não foi possível abrir a webcam.")
+            self.app.state = 'inicio'
+            return
+
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, FRAME_WIDTH)
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT)
+        
+        self.frame_width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        frame_height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        
+        print(f"AVISO: Resolução da câmara definida para {self.frame_width}x{frame_height}")
+        
+        # ROI Central Superior (CM)
+        self.ROI_CM = (int(247/640 * self.frame_width), int(8/360 * frame_height), int(145/640 * self.frame_width), int(106/360 * frame_height))
+        # ROI Centro-Esquerda (CE)
+        self.ROI_CE = (int(41/640 * self.frame_width), int(120/360 * frame_height), int(232/640 * self.frame_width), int(106/360 * frame_height))
+        # ROI Centro-Direita (CD)
+        self.ROI_CD = (int(367/640 * self.frame_width), int(120/360 * frame_height), int(232/640 * self.frame_width), int(106/360 * frame_height))
+        # ROI Base-Esquerda (BE)
+        self.ROI_BE = (int(41/640 * self.frame_width), int(264/360 * frame_height), int(232/640 * self.frame_width), int(106/360 * frame_height))
+        # ROI Base-Direita (BD)
+        self.ROI_BD = (int(367/640 * self.frame_width), int(264/360 * frame_height), int(232/640 * self.frame_width), int(106/360 * frame_height))
+        
+        self.ZONAS = {'CM': self.ROI_CM, 'CE': self.ROI_CE, 'CD': self.ROI_CD, 'BE': self.ROI_BE, 'BD': self.ROI_BD}
+        
+        # ROI de seguimento de linha 
+        self.ROI_LINE_Y = int(230/360 * frame_height) 
+        self.ROI_LINE_HEIGHT = int(60/360 * frame_height)
+        
         self.acao, self.erro, self.last_erro, self.gap_counter = "Iniciando...", 0, 0, 0
 
     def stop(self):
@@ -245,24 +275,23 @@ class TelaRodada:
         if self.cap: self.cap.release(); self.cap = None
         self.app.state = 'inicio'
 
-    def get_zone_state(self, hsv_frame, gray_frame, zone_roi, calib):
+    def get_zone_state(self, frame, zone_roi, calib):
         x, y, w, h = zone_roi
-        roi_hsv = hsv_frame[y:y+h, x:x+w]
-        roi_gray = gray_frame[y:y+h, x:x+w]
+        roi_bgr = frame[y:y+h, x:x+w]
         total_pixels = w * h
         if total_pixels == 0: return "Branco"
         
-        # 1. Checa por Vermelho (MAIOR PRIORIDADE)
+        roi_hsv = cv2.cvtColor(roi_bgr, cv2.COLOR_BGR2HSV)
+        roi_gray = cv2.cvtColor(roi_bgr, cv2.COLOR_BGR2GRAY)
+        
         mask_r1 = cv2.inRange(roi_hsv, calib['LOWER_RED1'], calib['UPPER_RED1'])
         mask_r2 = cv2.inRange(roi_hsv, calib['LOWER_RED2'], calib['UPPER_RED2'])
         mask_red = mask_r1 + mask_r2
         if (cv2.countNonZero(mask_red) * 100 / total_pixels) > calib['RED_PERCENT_THRESH']: return "Vermelho"
         
-        # 2. Checa por Verde
         mask_green = cv2.inRange(roi_hsv, calib['LOWER_GREEN'], calib['UPPER_GREEN'])
         if (cv2.countNonZero(mask_green) * 100 / total_pixels) > calib['GREEN_PERCENT_THRESH']: return "Verde"
         
-        # 3. Checa por Preto
         _, mask_black = cv2.threshold(roi_gray, calib['THRESHOLD_VALUE'], 255, cv2.THRESH_BINARY_INV)
         if (cv2.countNonZero(mask_black) * 100 / total_pixels) > calib['BLACK_PERCENT_THRESH']: return "Preto"
         
@@ -274,37 +303,26 @@ class TelaRodada:
         if not ret: self.acao = "Falha na Captura"; motor_control.stop_all_motors(); return
         
         calib = self.app.calib_vars
-        gray_frame = cv2.cvtColor(self.frame, cv2.COLOR_BGR2GRAY)
-        hsv_frame = cv2.cvtColor(self.frame, cv2.COLOR_BGR2HSV)
-        zone_states = {name: self.get_zone_state(hsv_frame, gray_frame, roi, calib) for name, roi in self.ZONAS.items()}
+        zone_states = {name: self.get_zone_state(self.frame, roi, calib) for name, roi in self.ZONAS.items()}
         
-        # --- NOVA LÓGICA DE DECISÃO HIERÁRQUICA ---
-        
-        # 1. PRIORIDADE MÁXIMA: VERMELHO (FIM DE PROVA)
         if any(state == "Vermelho" for state in zone_states.values()):
             self.acao = "Fim de Pista"
-        
-        # 2. SEGUNDA PRIORIDADE: MANOBRAS ESPECIAIS (CURVAS, VERDE, ETC.)
         elif zone_states['BE'] == "Preto" and zone_states['BD'] == "Preto": self.acao = "Seguir em Frente"
         elif zone_states['BD'] == "Verde" and zone_states['BE'] == "Verde": self.acao = "Meia Volta"
-        # Adicione outras regras de manobra aqui...
         elif zone_states['CE'] == "Preto" and zone_states['CD'] == "Branco" and zone_states['CM'] == "Branco": self.acao = "Curva de 90 Esquerda"
         elif zone_states['CD'] == "Preto" and zone_states['CE'] == "Branco" and zone_states['CM'] == "Branco": self.acao = "Curva de 90 Direita"
-        
-        # 3. TERCEIRA PRIORIDADE: SEGUIR LINHA NORMALMENTE
         else:
             self.acao = "Seguindo Linha"
+            gray_frame = cv2.cvtColor(self.frame, cv2.COLOR_BGR2GRAY)
             roi_line = gray_frame[self.ROI_LINE_Y : self.ROI_LINE_Y + self.ROI_LINE_HEIGHT, :]
             _, mask = cv2.threshold(roi_line, calib['THRESHOLD_VALUE'], 255, cv2.THRESH_BINARY_INV)
             M = cv2.moments(mask)
             
             if M["m00"] > 0:
                 cx = int(M["m10"] / M["m00"])
-                self.erro = cx - FRAME_WIDTH // 2
+                self.erro = (self.frame_width // 2) - cx
                 self.last_erro = self.erro
                 self.gap_counter = 0
-            
-            # 4. ÚLTIMO RECURSO: LÓGICA DE GAP/PROCURAR LINHA
             else:
                 self.gap_counter += 1
                 if self.gap_counter < self.MAX_GAP_FRAMES:
@@ -314,7 +332,6 @@ class TelaRodada:
                     self.acao = "Procurando Linha"
                     self.erro = 0
         
-        # Envia comando final para os motores
         if self.acao == "Fim de Pista":
             motor_control.stop_all_motors()
         else:
@@ -323,7 +340,7 @@ class TelaRodada:
         self.frame = self.visualize_rois(self.frame.copy(), zone_states)
 
     def visualize_rois(self, display_frame, zone_states):
-        cv2.rectangle(display_frame, (0, self.ROI_LINE_Y), (FRAME_WIDTH, self.ROI_LINE_Y + self.ROI_LINE_HEIGHT), (255, 255, 0), 2)
+        cv2.rectangle(display_frame, (0, self.ROI_LINE_Y), (self.frame_width, self.ROI_LINE_Y + self.ROI_LINE_HEIGHT), (255, 255, 0), 2)
         for name, roi in self.ZONAS.items():
             x, y, w, h = roi
             color = (255, 0, 255)
