@@ -3,7 +3,8 @@ import numpy as np
 import pygame
 import sys
 import os
-import motor_control 
+import motor_control
+import ultrassonico # <-- NOVO: Importa o módulo do sensor
 
 # --- Configurações da Interface Gráfica ---
 SCREEN_WIDTH = 480
@@ -76,8 +77,9 @@ class App:
 
         try:
             motor_control.setup_motors()
+            ultrassonico.setup_ultrassonico()
         except Exception as e:
-            print(f'Erro ao iniciar motores:{e}')
+            print(f'Erro ao iniciar hardware:{e}')
             self.running = False
 
     def run(self):
@@ -220,7 +222,7 @@ class TelaCalibracao:
                 if 0 <= y_frame < frame_h and 0 <= x_frame < frame_w:
                     if self.step == 0 and self.gray_frame is not None: self.black_samples.append(self.gray_frame[y_frame, x_frame])
                     elif self.step == 1 and self.hsv_frame is not None: self.green_samples.append(self.hsv_frame[y_frame, x_frame])
-                    elif sel    f.step == 2 and self.gray_frame is not None: self.white_samples.append(self.gray_frame[y_frame, x_frame])
+                    elif self.step == 2 and self.gray_frame is not None: self.white_samples.append(self.gray_frame[y_frame, x_frame])
                     elif self.step == 3 and self.hsv_frame is not None: self.red_samples.append(self.hsv_frame[y_frame, x_frame])
 
 class TelaRodada:
@@ -299,6 +301,18 @@ class TelaRodada:
 
     def update(self):
         if not self.cap or not self.cap.isOpened(): self.acao = "Câmera Desconectada"; motor_control.stop_all_motors(); return
+        
+        # --- LÓGICA DE DESVIO DE OBSTÁCULO ---
+        dist = ultrassonico.medir_distancia()
+        if dist < ultrassonico.DISTANCIA_OBSTACULO:
+            self.acao = "Desviando..."
+            self.area = "Obstáculo"
+            motor_control.gerenciar_movimento("Desviando", 0) 
+            self.last_erro = 0 # Reseta o erro para recomeçar o PID
+            return # Pula o resto da lógica de visão se estiver desviando
+        
+        # --- LÓGICA DE SEGUIMENTO DE LINHA ---
+        self.area = "Percurso" # Volta para a área normal
         ret, self.frame = self.cap.read()
         if not ret: self.acao = "Falha na Captura"; motor_control.stop_all_motors(); return
         
