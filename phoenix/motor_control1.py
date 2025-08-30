@@ -1,34 +1,43 @@
 import RPi.GPIO as GPIO
 import time
 
-# ===================================================================
-# --- CONFIGURAÇÕES E CONSTANTES DE MOVIMENTO (Tudo em um só lugar) ---
-# ===================================================================
-
 # --- Pinos GPIO ---
 IN1_L, IN2_L, EN_L = 21, 20, 12
 IN1_R, IN2_R, EN_R = 16, 19, 13
 
-# --- Parâmetros PID ---
-KP, KI, KD = 0.3, 0.0, 0.02
+# --- Parâmetros PID --
+KP, KI, KD = 0.4, 0.0, 0.05
 
-# --- Parâmetros de Velocidade  ---
-BASE_SPEED = 20
+# --- Parâmetros de Velocidade ---
+BASE_SPEED = 15
 INTERSECTION_SPEED = 15
 TURN_SPEED = 15
-GAP_SPEED = 25 # Velocidade um pouco maior para passar rápido pelo gap
+GAP_SPEED = 20
+
+# --- Parâmetros de Manobra de Desvio ---
+OBSTACLE_TURN_SPEED = 90.0
+OBSTACLE_MOVE_SPEED = 75.0
+OBSTACLE_TURN_TIME_1 = 0.6
+OBSTACLE_TURN_TIME_2 = 0.6
+OBSTACLE_TURN_TIME_3 = 0.6
+OBSTACLE_TURN_TIME_4 = 0.6
+OBSTACLE_FORWARD_TIME_1 = 0.4
+OBSTACLE_FORWARD_TIME_2 = 0.4
+OBSTACLE_FORWARD_TIME_3 = 0.4
+OBSTACLE_BACKWARD_TIME = 0.2
+OBSTACLE_BACKWARD_SPEED = 70.0
+
 
 # --- Parâmetros de Manobra ---
-TURN_DURATION_90 = 0.5    # Segundos para girar 90 graus (CALIBRAR)
-TURN_DURATION_180 = 0.9   # Segundos para girar 180 graus (CALIBRAR)
-FORWARD_DURATION = 0.25   # Segundos para avançar um pouco antes de virar
+TURN_DURATION_180 = 1.5   # Segundos para girar 180 graus
+FORWARD_DURATION = 0.2    # Segundos para avançar um pouco antes de virar
 
 # --- Variáveis de Estado Internas do Módulo ---
 last_error = 0
 integral = 0
 pwm_L, pwm_R = None, None
 last_action_time = 0
-ACTION_DELAY_SECONDS = 0.5 # Delay para evitar que manobras especiais sejam chamadas em sequência
+ACTION_DELAY_SECONDS = 0.5 # Delay para evitar comandos duplicados
 
 # ===================================================================
 # --- FUNÇÕES DE BAIXO NÍVEL (Controle direto dos motores) ---
@@ -104,12 +113,60 @@ def _turn(direction, speed, duration):
         set_motor_speed('L', speed)
         set_motor_speed('R', -speed)
     time.sleep(duration)
+    stop_all_motors()
 
 def _move_forward(speed, duration):
     """Lógica interna para mover para frente."""
     set_motor_speed('L', speed)
     set_motor_speed('R', speed)
     time.sleep(duration)
+    stop_all_motors()
+
+def _move_backward(speed, duration):
+    """Lógica interna para mover para trás."""
+    set_motor_speed('L', -speed)
+    set_motor_speed('R', -speed)
+    time.sleep(duration)
+    stop_all_motors()
+
+# ===================================================================
+# --- FUNÇÕES DE ALTO NÍVEL (Manobras Específicas) ---
+# ===================================================================
+
+def manobra_desvio_obstaculo():
+    """
+    Executa a sequência completa de movimentos para desviar de um obstáculo.
+    """
+    print("Módulo de Controle: Iniciando manobra de desvio de obstáculo.")
+    stop_all_motors()
+    time.sleep(0.5)
+
+    _move_backward(OBSTACLE_BACKWARD_SPEED, OBSTACLE_BACKWARD_TIME)
+    time.sleep(0.2)
+
+    # 1. Primeiro giro (Direita) e avanço
+    _turn('right', OBSTACLE_TURN_SPEED, OBSTACLE_TURN_TIME_1)
+    time.sleep(0.2)
+    _move_forward(OBSTACLE_MOVE_SPEED, OBSTACLE_FORWARD_TIME_1)
+    time.sleep(0.2)
+    
+    # 2. Segundo giro (Esquerda) e avanço lateral
+    _turn('left', OBSTACLE_TURN_SPEED, OBSTACLE_TURN_TIME_2)
+    time.sleep(0.2)
+    _move_forward(OBSTACLE_MOVE_SPEED, OBSTACLE_FORWARD_TIME_2)
+    time.sleep(0.2)
+    
+    # 3. Terceiro giro (Esquerda) para realinhar e avançar
+    _turn('left', OBSTACLE_TURN_SPEED, OBSTACLE_TURN_TIME_3)
+    time.sleep(0.2)
+    _move_forward(OBSTACLE_MOVE_SPEED, OBSTACLE_FORWARD_TIME_3)
+    time.sleep(0.2)
+    
+    # 4. Quarto giro (Direita) para finalizar a manobra
+    _turn('right', OBSTACLE_TURN_SPEED, OBSTACLE_TURN_TIME_4)
+    
+    print("Módulo de Controle: Manobra de desvio concluída.")
+    time.sleep(0.5)
 
 # ===================================================================
 # --- FUNÇÃO PRINCIPAL (A única que o main vai chamar) ---
@@ -121,35 +178,47 @@ def gerenciar_movimento(acao, erro):
     """
     global last_action_time
     current_time = time.time()
-    
+
+    # Ações que não devem ser interrompidas por delay
     if acao == "Seguindo Linha":
         _follow_line_pid(erro, base_speed=BASE_SPEED)
+        return
     elif "Seguir em Frente" in acao:
         _follow_line_pid(erro, base_speed=INTERSECTION_SPEED)
+        return
     elif acao == "Atravessando Gap":
         _follow_line_pid(erro, base_speed=GAP_SPEED)
+        return
+    elif "Procurando Linha" in acao:
+        set_motor_speed('L', 35)
+        set_motor_speed('R', -35)
+        return
     
-    elif "Curva de 90" in acao:
-        if current_time - last_action_time < ACTION_DELAY_SECONDS: return
-        print(f"Módulo de Controle: Executando {acao}.")
-        _move_forward(INTERSECTION_SPEED, FORWARD_DURATION)
-        if "Direita" in acao:
-            _turn('right', TURN_SPEED, TURN_DURATION_90)
-        else: # Esquerda
-            _turn('left', TURN_SPEED, TURN_DURATION_90)
+    # Ações que são manobras e precisam de um delay para não repetir
+    if current_time - last_action_time < ACTION_DELAY_SECONDS:
+        return
+
+    if "Curva de 90 Direita" in acao:
+        print("Módulo de Controle: Executando curva de 90 graus à direita.")
+        _move_forward(INTERSECTION_SPEED, 0.25)
+        _turn('right', TURN_SPEED, 0.5)
+        last_action_time = time.time()
+        
+    elif "Curva de 90 Esquerda" in acao:
+        print("Módulo de Controle: Executando curva de 90 graus à esquerda.")
+        _move_forward(INTERSECTION_SPEED, 0.25)
+        _turn('left', TURN_SPEED, 0.5)
         last_action_time = time.time()
         
     elif "Meia Volta" in acao:
-        if current_time - last_action_time < ACTION_DELAY_SECONDS: return
         print("Módulo de Controle: Executando meia volta.")
         _move_forward(INTERSECTION_SPEED, FORWARD_DURATION)
         _turn('right', TURN_SPEED, TURN_DURATION_180)
         last_action_time = time.time()
-
-    elif "Procurando Linha" in acao:
-        # Gira para procurar a linha (sem delay)
-        set_motor_speed('L', 35)
-        set_motor_speed('R', -35)
     
-    else: # Para para "Fim de Pista" ou ações desconhecidas
+    elif "Desviando" in acao:
+        manobra_desvio_obstaculo()
+        last_action_time = time.time()
+
+    else:
         stop_all_motors()
