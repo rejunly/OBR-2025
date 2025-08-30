@@ -20,7 +20,7 @@ GRAY_COLOR = (50, 50, 50)
 
 CAMERA_DISPLAY_SIZE = (430, 242)
 
-# --- Configurações da Webcam (Valores desejados, mas o código vai adaptar-se) ---
+# --- Configurações da Webcam---
 FRAME_WIDTH = 320
 FRAME_HEIGHT = 180
 
@@ -115,7 +115,6 @@ class App:
         sys.exit()
 
 class TelaInicio:
-    # ... (sem alterações) ...
     def __init__(self, app):
         self.app = app
         self.btn_iniciar = pygame.Rect(25, 250, 430, 80)
@@ -146,7 +145,6 @@ class TelaInicio:
                 self.app.running = False
 
 class TelaCalibracao:
-    # ... (sem alterações) ...
     def __init__(self, app):
         self.app = app; self.cap = None; self.frame = None; self.gray_frame = None; self.hsv_frame = None
         self.step = 0; self.btn_proximo = pygame.Rect(SCREEN_WIDTH // 2 - 125, 550, 250, 60)
@@ -192,7 +190,6 @@ class TelaCalibracao:
         self.app.screen.blit(texto_renderizado_botao, texto_renderizado_botao.get_rect(center=self.btn_proximo.center))
 
     def avancar_passo(self):
-        #... (código sem alterações)
         if self.step == 0 and self.black_samples:
             self.app.calib_vars['THRESHOLD_VALUE'] = int(np.mean(self.black_samples) + 30)
         elif self.step == 1 and self.green_samples:
@@ -210,7 +207,6 @@ class TelaCalibracao:
             print("Calibração finalizada."); self.stop(); self.app.state = 'inicio'
             
     def handle_event(self, event):
-        #... (código sem alterações)
         if event.type == pygame.KEYDOWN and event.key == pygame.K_RETURN: self.avancar_passo()
         if event.type == pygame.MOUSEBUTTONDOWN:
             if self.btn_proximo.collidepoint(event.pos): self.avancar_passo()
@@ -224,7 +220,7 @@ class TelaCalibracao:
                 if 0 <= y_frame < frame_h and 0 <= x_frame < frame_w:
                     if self.step == 0 and self.gray_frame is not None: self.black_samples.append(self.gray_frame[y_frame, x_frame])
                     elif self.step == 1 and self.hsv_frame is not None: self.green_samples.append(self.hsv_frame[y_frame, x_frame])
-                    elif self.step == 2 and self.gray_frame is not None: self.white_samples.append(self.gray_frame[y_frame, x_frame])
+                    elif sel    f.step == 2 and self.gray_frame is not None: self.white_samples.append(self.gray_frame[y_frame, x_frame])
                     elif self.step == 3 and self.hsv_frame is not None: self.red_samples.append(self.hsv_frame[y_frame, x_frame])
 
 class TelaRodada:
@@ -254,10 +250,6 @@ class TelaRodada:
         frame_height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         
         print(f"AVISO: Resolução da câmara definida para {self.frame_width}x{frame_height}")
-
-        # <<< PROPORÇÕES AUMENTADAS PARA MAIOR ÁREA DE LEITURA >>>
-        # Proporções originais (x, y, w, h) baseadas no frame 640x360
-        # Novos valores são ~25% maiores em área (w*1.25, h*1.25) e recentralizados
         
         # ROI Central Superior (CM)
         self.ROI_CM = (int(247/640 * self.frame_width), int(8/360 * frame_height), int(145/640 * self.frame_width), int(106/360 * frame_height))
@@ -272,20 +264,18 @@ class TelaRodada:
         
         self.ZONAS = {'CM': self.ROI_CM, 'CE': self.ROI_CE, 'CD': self.ROI_CD, 'BE': self.ROI_BE, 'BD': self.ROI_BD}
         
-        # ROI de seguimento de linha (50% mais alta)
+        # ROI de seguimento de linha 
         self.ROI_LINE_Y = int(230/360 * frame_height) 
         self.ROI_LINE_HEIGHT = int(60/360 * frame_height)
         
         self.acao, self.erro, self.last_erro, self.gap_counter = "Iniciando...", 0, 0, 0
 
     def stop(self):
-        #... (código sem alterações)
         motor_control.stop_all_motors()
         if self.cap: self.cap.release(); self.cap = None
         self.app.state = 'inicio'
 
     def get_zone_state(self, frame, zone_roi, calib):
-        #... (código sem alterações)
         x, y, w, h = zone_roi
         roi_bgr = frame[y:y+h, x:x+w]
         total_pixels = w * h
@@ -308,7 +298,6 @@ class TelaRodada:
         return "Branco"
 
     def update(self):
-        #... (código sem alterações)
         if not self.cap or not self.cap.isOpened(): self.acao = "Câmera Desconectada"; motor_control.stop_all_motors(); return
         ret, self.frame = self.cap.read()
         if not ret: self.acao = "Falha na Captura"; motor_control.stop_all_motors(); return
@@ -351,7 +340,6 @@ class TelaRodada:
         self.frame = self.visualize_rois(self.frame.copy(), zone_states)
 
     def visualize_rois(self, display_frame, zone_states):
-        #... (código sem alterações)
         cv2.rectangle(display_frame, (0, self.ROI_LINE_Y), (self.frame_width, self.ROI_LINE_Y + self.ROI_LINE_HEIGHT), (255, 255, 0), 2)
         for name, roi in self.ZONAS.items():
             x, y, w, h = roi
@@ -364,7 +352,6 @@ class TelaRodada:
         return display_frame
 
     def draw(self):
-        #... (código sem alterações)
         self.app.screen.blit(self.app.logo_pequeno, (SCREEN_WIDTH // 2 - 50, 0))
         if self.frame is not None:
             frame_rgb = cv2.cvtColor(self.frame, cv2.COLOR_BGR2RGB)
